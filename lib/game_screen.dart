@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_sensors/flutter_sensors.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'categories.dart';
 import 'results_screen.dart';
 import 'package:vibration/vibration.dart';
@@ -23,7 +24,7 @@ class _GameScreenState extends State<GameScreen> {
   late String currentWord;
   int score = 0;
   late Timer timer;
-  int remainingTime = 60; // 60 seconds game time
+  int remainingTime = 60; // Default game time
   bool isGameStarted = false;
 
   StreamSubscription? _accelerometerSubscription;
@@ -42,6 +43,9 @@ class _GameScreenState extends State<GameScreen> {
   bool _isPlacingOnForehead = true;
   bool _isCountingDown = false;
 
+  bool _soundEnabled = true;
+  int _gameDuration = 60;
+
   @override
   void initState() {
     super.initState();
@@ -49,11 +53,26 @@ class _GameScreenState extends State<GameScreen> {
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+    _loadSettings();
     words = getWordsForDeck(widget.deckName);
     usedWords = List.filled(words.length, false);
     currentWord = getNextWord();
     _displayText = 'Place on Forehead';
     _startListeningToAccelerometer();
+  }
+
+  void _loadSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _soundEnabled = prefs.getBool('soundEnabled') ?? true;
+        _gameDuration = prefs.getInt('gameDuration') ?? 60;
+        remainingTime = _gameDuration;
+      });
+    } catch (e) {
+      print('Error loading settings: $e');
+      // Use default values if loading fails
+    }
   }
 
   void startCountdown() {
@@ -232,7 +251,13 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _playSound(String soundFile) async {
-    await _audioPlayer.play(AssetSource(soundFile));
+    if (_soundEnabled) {
+      try {
+        await _audioPlayer.play(AssetSource(soundFile));
+      } catch (e) {
+        print('Error playing sound: $e');
+      }
+    }
   }
 
   @override

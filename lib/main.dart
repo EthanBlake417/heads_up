@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:heads_up/game_screen.dart';
+import 'package:heads_up/settings_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SharedPreferences.getInstance(); // Initialize SharedPreferences
   runApp(const MyApp());
 }
 
@@ -11,12 +15,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Heads Up',  // Changed from 'Heads Up Clone'
+      title: 'Heads Up', // Changed from 'Heads Up Clone'
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomePage(title: 'Heads Up'),  // Changed from 'Heads Up Clone'
+      home: const HomePage(title: 'Heads Up'), // Changed from 'Heads Up Clone'
     );
   }
 }
@@ -39,11 +43,23 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: // In the HomePage class
+          AppBar(
         title: Text(title),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
-        centerTitle: true,  // Add this line to center the title
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(

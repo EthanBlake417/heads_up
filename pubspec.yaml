@@ -38,7 +38,7 @@ dependencies:
   flutter_sensors: ^1.0.1
   audioplayers: ^5.0.0
   vibration: ^1.9.0  # or the latest version available
-
+  shared_preferences: ^2.2.2
 
 
 dev_dependencies:

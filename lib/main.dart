@@ -38,6 +38,20 @@ class HomePage extends StatelessWidget {
     Deck('Sports', Icons.sports_soccer),
     Deck('Music', Icons.music_note),
     Deck('Countries', Icons.public),
+    Deck('Celebrities', Icons.star),
+    Deck('Professions', Icons.work),
+    Deck('Science', Icons.science),
+    Deck('Technology', Icons.computer),
+    Deck('Literature', Icons.book),
+    Deck('History', Icons.history),
+    Deck('Art', Icons.palette),
+    Deck('TV Shows', Icons.tv),
+    Deck('Brands', Icons.branding_watermark),
+    Deck('Mythology', Icons.auto_stories),
+    Deck('Video Games', Icons.gamepad),
+    Deck('Nature', Icons.nature),
+    Deck('Fashion', Icons.shopping_bag),
+    Deck('Inventions', Icons.lightbulb),
   ];
 
   @override

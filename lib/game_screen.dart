@@ -210,11 +210,13 @@ class _GameScreenState extends State<GameScreen> {
 
   void onPass() {
     Vibration.vibrate(duration: 175);
-    setState(() {
-      passedWords.add(currentWord);
-      _backgroundColors = [Colors.orange.shade700, Colors.orange.shade300];
-      _displayText = 'PASS';
-    });
+    if (mounted) {
+      setState(() {
+        passedWords.add(currentWord);
+        _backgroundColors = [Colors.orange.shade700, Colors.orange.shade300];
+        _displayText = 'PASS';
+      });
+    }
   }
 
   void _resetToNeutral() {

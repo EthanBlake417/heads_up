@@ -41,7 +41,6 @@ class HomePage extends StatelessWidget {
     Deck('Celebrities', Icons.star),
     Deck('Professions', Icons.work),
     Deck('Science', Icons.science),
-    Deck('Technology', Icons.computer),
     Deck('Literature', Icons.book),
     Deck('History', Icons.history),
     Deck('Art', Icons.palette),
@@ -52,6 +51,10 @@ class HomePage extends StatelessWidget {
     Deck('Nature', Icons.nature),
     Deck('Fashion', Icons.shopping_bag),
     Deck('Inventions', Icons.lightbulb),
+    Deck('Lord of the Rings', Icons.castle),
+    Deck('Harry Potter', Icons.castle),
+    Deck('Act It Out', Icons.theater_comedy),
+    Deck('Impressions', Icons.face),
   ];
 
   @override

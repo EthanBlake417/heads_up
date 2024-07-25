@@ -1,4 +1,4 @@
-# heads_up
+# Heads Up
 
 A new Flutter project.
 

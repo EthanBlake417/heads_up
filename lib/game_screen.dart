@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter_sensors/flutter_sensors.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'categories.dart';
 import 'results_screen.dart';
+import 'package:vibration/vibration.dart';
 
 class GameScreen extends StatefulWidget {
   final String deckName;
@@ -21,7 +23,8 @@ class _GameScreenState extends State<GameScreen> {
   late String currentWord;
   int score = 0;
   late Timer timer;
-  int remainingTime = 60; // 60 seconds game time
+  int remainingTime = 15; // 60 seconds game time
+  bool isGameStarted = false;
 
   StreamSubscription? _accelerometerSubscription;
 
@@ -34,6 +37,8 @@ class _GameScreenState extends State<GameScreen> {
 
   double _dragStartX = 0.0;
 
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
   @override
   void initState() {
     super.initState();
@@ -44,9 +49,50 @@ class _GameScreenState extends State<GameScreen> {
     words = getWordsForDeck(widget.deckName);
     usedWords = List.filled(words.length, false);
     currentWord = getNextWord();
-    _displayText = currentWord;
-    startTimer();
-    _startListeningToAccelerometer();
+    _displayText = '3';
+    startCountdown();
+  }
+
+  void startCountdown() {
+    int count = 3;
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      _processCountdown(count, timer);
+      count--;
+    });
+  }
+
+  Future<void> _processCountdown(int count, Timer timer) async {
+    if (count > 0) {
+      setState(() {
+        _displayText = count.toString();
+      });
+
+      // Play sound
+      _playSound('countdown.mp3');
+
+      // Delay haptic feedback slightly
+      await Future.delayed(Duration(milliseconds: 150));
+      Vibration.vibrate(duration: 100);
+    } else if (count == 0) {
+      setState(() {
+        _displayText = 'GO!';
+      });
+
+      // Play 'GO!' sound
+      _playSound('countdown.mp3');
+
+      // Delay haptic feedback slightly
+      await Future.delayed(Duration(milliseconds: 100));
+      Vibration.vibrate(duration: 100);
+    } else {
+      timer.cancel();
+      setState(() {
+        isGameStarted = true;
+        _displayText = currentWord;
+      });
+      startTimer();
+      _startListeningToAccelerometer();
+    }
   }
 
   @override
@@ -57,6 +103,7 @@ class _GameScreenState extends State<GameScreen> {
     ]);
     timer.cancel();
     _accelerometerSubscription?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -78,17 +125,23 @@ class _GameScreenState extends State<GameScreen> {
     return words[index];
   }
 
-  void startTimer() {
-    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (remainingTime > 0) {
-          remainingTime--;
-        } else {
-          endGame();
+void startTimer() {
+  timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    setState(() {
+      if (remainingTime > 0) {
+        remainingTime--;
+        if (remainingTime <= 10) {
+          // Vibrate for each of the last 10 seconds
+          // _playSound('tick.mp3');
+          Vibration.vibrate(duration: (15 + (10-remainingTime)*10));
+          // You can also play a sound here if you want
         }
-      });
+      } else {
+        endGame();
+      }
     });
-  }
+  });
+}
 
   void _startListeningToAccelerometer() async {
     final stream = await SensorManager().sensorUpdates(
@@ -110,8 +163,10 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void onCorrect() {
-    HapticFeedback.heavyImpact();
+    Vibration.vibrate(duration: 350);
 
+    // HapticFeedback.heavyImpact();
+    _playSound('correct.mp3');
     setState(() {
       score++;
       correctWords.add(currentWord);
@@ -121,7 +176,9 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void onPass() {
-    HapticFeedback.heavyImpact();
+    Vibration.vibrate(duration: 175);
+    // HapticFeedback.heavyImpact();
+    // _playSound('pass.mp3');
     setState(() {
       passedWords.add(currentWord);
       _backgroundColors = [Colors.orange.shade700, Colors.orange.shade300];
@@ -140,32 +197,45 @@ class _GameScreenState extends State<GameScreen> {
 
   void endGame() {
     timer.cancel();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ResultsScreen(
-          score: score,
-          deckName: widget.deckName,
-          correctWords: correctWords,
-          passedWords: passedWords,
+    _playSound('times_up.mp3');
+    setState(() {
+      _displayText = "Time's Up!";
+    });
+    Vibration.vibrate(duration: 500);
+
+    Future.delayed(const Duration(seconds: 1), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultsScreen(
+            score: score,
+            deckName: widget.deckName,
+            correctWords: correctWords,
+            passedWords: passedWords,
+          ),
         ),
-      ),
-    );
+      );
+    });
+  }
+
+  Future<void> _playSound(String soundFile) async {
+    await _audioPlayer.play(AssetSource(soundFile));
   }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onHorizontalDragStart: (details) {
-        _dragStartX = details.globalPosition.dx;
+        if (isGameStarted) _dragStartX = details.globalPosition.dx;
       },
       onHorizontalDragEnd: (details) {
-        double dragDistance = (details.globalPosition.dx - _dragStartX).abs();
-        double screenWidth = MediaQuery.of(context).size.width;
+        if (isGameStarted) {
+          double dragDistance = (details.globalPosition.dx - _dragStartX).abs();
+          double screenWidth = MediaQuery.of(context).size.width;
 
-        // End the game if the drag distance is more than 30% of the screen width
-        if (dragDistance > screenWidth * 0.3) {
-          endGame();
+          if (dragDistance > screenWidth * 0.3) {
+            endGame();
+          }
         }
       },
       child: Scaffold(
@@ -183,14 +253,15 @@ class _GameScreenState extends State<GameScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'Time: $remainingTime',
-                    style: const TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  if (isGameStarted)
+                    Text(
+                      'Time: $remainingTime',
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 40),
                   Text(
                     _displayText,

@@ -40,6 +40,7 @@ class _GameScreenState extends State<GameScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   bool _isPlacingOnForehead = true;
+  bool _isCountingDown = false;
 
   @override
   void initState() {
@@ -66,6 +67,7 @@ class _GameScreenState extends State<GameScreen> {
   Future<void> _processCountdown(int count, Timer timer) async {
     if (count > 0) {
       setState(() {
+        _backgroundColors = [Colors.blue.shade700, Colors.blue.shade300];
         _displayText = count.toString();
       });
 
@@ -86,6 +88,7 @@ class _GameScreenState extends State<GameScreen> {
       timer.cancel();
       setState(() {
         isGameStarted = true;
+        _isCountingDown = false;
         _displayText = currentWord;
       });
       startTimer();
@@ -148,6 +151,15 @@ class _GameScreenState extends State<GameScreen> {
           // Phone is roughly horizontal
           setState(() {
             _isPlacingOnForehead = false;
+            _backgroundColors = [
+              Colors.purple.shade700,
+              Colors.purple.shade300
+            ];
+          });
+          Future.delayed(Duration(milliseconds: 0), () {
+            setState(() {
+              _isCountingDown = true;
+            });
             startCountdown();
           });
         }
@@ -266,15 +278,16 @@ class _GameScreenState extends State<GameScreen> {
                       ),
                     ),
                   const SizedBox(height: 40),
-                  Text(
-                    _displayText,
-                    style: const TextStyle(
-                      fontSize: 100,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                  if (_isPlacingOnForehead || _isCountingDown || isGameStarted)
+                    Text(
+                      _displayText,
+                      style: const TextStyle(
+                        fontSize: 100,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
                 ],
               ),
             ),

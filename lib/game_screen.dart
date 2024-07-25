@@ -32,6 +32,8 @@ class _GameScreenState extends State<GameScreen> {
   List<String> correctWords = [];
   List<String> passedWords = [];
 
+  double _dragStartX = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -108,7 +110,8 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void onCorrect() {
-    HapticFeedback.mediumImpact();
+    HapticFeedback.heavyImpact();
+
     setState(() {
       score++;
       correctWords.add(currentWord);
@@ -118,7 +121,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void onPass() {
-    HapticFeedback.lightImpact();
+    HapticFeedback.heavyImpact();
     setState(() {
       passedWords.add(currentWord);
       _backgroundColors = [Colors.orange.shade700, Colors.orange.shade300];
@@ -153,8 +156,17 @@ class _GameScreenState extends State<GameScreen> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onHorizontalDragStart: (details) {
+        _dragStartX = details.globalPosition.dx;
+      },
       onHorizontalDragEnd: (details) {
-        endGame();
+        double dragDistance = (details.globalPosition.dx - _dragStartX).abs();
+        double screenWidth = MediaQuery.of(context).size.width;
+
+        // End the game if the drag distance is more than 30% of the screen width
+        if (dragDistance > screenWidth * 0.3) {
+          endGame();
+        }
       },
       child: Scaffold(
         body: AnimatedContainer(

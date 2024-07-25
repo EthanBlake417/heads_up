@@ -23,7 +23,7 @@ class _GameScreenState extends State<GameScreen> {
   late String currentWord;
   int score = 0;
   late Timer timer;
-  int remainingTime = 15; // 60 seconds game time
+  int remainingTime = 60; // 60 seconds game time
   bool isGameStarted = false;
 
   StreamSubscription? _accelerometerSubscription;
@@ -39,6 +39,8 @@ class _GameScreenState extends State<GameScreen> {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  bool _isPlacingOnForehead = true;
+
   @override
   void initState() {
     super.initState();
@@ -49,8 +51,8 @@ class _GameScreenState extends State<GameScreen> {
     words = getWordsForDeck(widget.deckName);
     usedWords = List.filled(words.length, false);
     currentWord = getNextWord();
-    _displayText = '3';
-    startCountdown();
+    _displayText = 'Place on Forehead';
+    _startListeningToAccelerometer();
   }
 
   void startCountdown() {
@@ -67,10 +69,8 @@ class _GameScreenState extends State<GameScreen> {
         _displayText = count.toString();
       });
 
-      // Play sound
       _playSound('countdown.mp3');
 
-      // Delay haptic feedback slightly
       await Future.delayed(Duration(milliseconds: 150));
       Vibration.vibrate(duration: 100);
     } else if (count == 0) {
@@ -78,10 +78,8 @@ class _GameScreenState extends State<GameScreen> {
         _displayText = 'GO!';
       });
 
-      // Play 'GO!' sound
       _playSound('countdown.mp3');
 
-      // Delay haptic feedback slightly
       await Future.delayed(Duration(milliseconds: 100));
       Vibration.vibrate(duration: 100);
     } else {
@@ -91,7 +89,6 @@ class _GameScreenState extends State<GameScreen> {
         _displayText = currentWord;
       });
       startTimer();
-      _startListeningToAccelerometer();
     }
   }
 
@@ -125,23 +122,20 @@ class _GameScreenState extends State<GameScreen> {
     return words[index];
   }
 
-void startTimer() {
-  timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-    setState(() {
-      if (remainingTime > 0) {
-        remainingTime--;
-        if (remainingTime <= 10) {
-          // Vibrate for each of the last 10 seconds
-          // _playSound('tick.mp3');
-          Vibration.vibrate(duration: (15 + (10-remainingTime)*10));
-          // You can also play a sound here if you want
+  void startTimer() {
+    timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (remainingTime > 0) {
+          remainingTime--;
+          if (remainingTime <= 10) {
+            Vibration.vibrate(duration: (15 + (10 - remainingTime) * 10));
+          }
+        } else {
+          endGame();
         }
-      } else {
-        endGame();
-      }
+      });
     });
-  });
-}
+  }
 
   void _startListeningToAccelerometer() async {
     final stream = await SensorManager().sensorUpdates(
@@ -149,23 +143,31 @@ void startTimer() {
       interval: Sensors.SENSOR_DELAY_GAME,
     );
     _accelerometerSubscription = stream.listen((SensorEvent event) {
-      if (event.data[2].abs() > 9 && !_isTriggered) {
-        if (event.data[2] > 0) {
-          onPass();
-        } else {
-          onCorrect();
+      if (_isPlacingOnForehead) {
+        if (event.data[2].abs() < 1) {
+          // Phone is roughly horizontal
+          setState(() {
+            _isPlacingOnForehead = false;
+            startCountdown();
+          });
         }
-        _isTriggered = true;
-      } else if (event.data[2].abs() < 3 && _isTriggered) {
-        _resetToNeutral();
+      } else if (isGameStarted) {
+        if (event.data[2].abs() > 9 && !_isTriggered) {
+          if (event.data[2] > 0) {
+            onPass();
+          } else {
+            onCorrect();
+          }
+          _isTriggered = true;
+        } else if (event.data[2].abs() < 3 && _isTriggered) {
+          _resetToNeutral();
+        }
       }
     });
   }
 
   void onCorrect() {
     Vibration.vibrate(duration: 350);
-
-    // HapticFeedback.heavyImpact();
     _playSound('correct.mp3');
     setState(() {
       score++;
@@ -177,8 +179,6 @@ void startTimer() {
 
   void onPass() {
     Vibration.vibrate(duration: 175);
-    // HapticFeedback.heavyImpact();
-    // _playSound('pass.mp3');
     setState(() {
       passedWords.add(currentWord);
       _backgroundColors = [Colors.orange.shade700, Colors.orange.shade300];
@@ -200,6 +200,7 @@ void startTimer() {
     _playSound('times_up.mp3');
     setState(() {
       _displayText = "Time's Up!";
+      _backgroundColors = [Colors.red.shade700, Colors.red.shade300];
     });
     Vibration.vibrate(duration: 500);
 
@@ -245,7 +246,9 @@ void startTimer() {
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: _backgroundColors,
+              colors: _isPlacingOnForehead
+                  ? [Colors.purple.shade700, Colors.purple.shade300]
+                  : _backgroundColors,
             ),
           ),
           child: SafeArea(

@@ -11,12 +11,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Heads Up Clone',
+      title: 'Heads Up',  // Changed from 'Heads Up Clone'
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomePage(title: 'Heads Up Clone'),
+      home: const HomePage(title: 'Heads Up'),  // Changed from 'Heads Up Clone'
     );
   }
 }
@@ -43,6 +43,7 @@ class HomePage extends StatelessWidget {
         title: Text(title),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
+        centerTitle: true,  // Add this line to center the title
       ),
       body: Container(
         decoration: BoxDecoration(

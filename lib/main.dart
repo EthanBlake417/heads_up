@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:heads_up/game_screen.dart';
 import 'package:heads_up/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +54,10 @@ class HomePage extends StatelessWidget {
     Deck('Fashion', Icons.shopping_bag),
     Deck('Inventions', Icons.lightbulb),
     Deck('Lord of the Rings', Icons.castle),
+    Deck('Chess', FontAwesomeIcons.chessKnight),
     Deck('Harry Potter', Icons.castle),
+    Deck('Bible', FontAwesomeIcons.bookBible),
+    Deck('Cornerstone', Icons.church),
     Deck('Act It Out', Icons.theater_comedy),
     Deck('Impressions', Icons.face),
   ];

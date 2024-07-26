@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:heads_up/game_screen.dart';
 
 class ResultsScreen extends StatelessWidget {
   final int score;
@@ -96,7 +97,33 @@ class ResultsScreen extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'Back to Home',
+                      'Pick New Deck',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => GameScreen(deckName: deckName),
+                        ),
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: Text(
+                      'Play Same Deck',
                       style: TextStyle(
                         fontSize: 18,
                         color: Colors.blue.shade700,

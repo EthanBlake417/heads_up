@@ -39,6 +39,8 @@ dependencies:
   audioplayers: ^5.0.0
   vibration: ^1.9.0  # or the latest version available
   shared_preferences: ^2.2.2
+  font_awesome_flutter: ^10.7.0  # Use the latest version available
+
 
 
 dev_dependencies:

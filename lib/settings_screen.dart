@@ -70,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text('$_gameDuration seconds'),
             trailing: DropdownButton<int>(
               value: _gameDuration,
-              items: [30, 60, 90, 120].map((int value) {
+              items: [30, 45, 60, 75, 90, 105, 120].map((int value) {
                 return DropdownMenuItem<int>(
                   value: value,
                   child: Text('$value sec'),

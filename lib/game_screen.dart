@@ -46,6 +46,9 @@ class _GameScreenState extends State<GameScreen> {
   bool _soundEnabled = true;
   int _gameDuration = 60;
 
+  bool _isActionCooldown = false;
+  final _cooldownDuration = const Duration(milliseconds: 350); // cooldown
+
   @override
   void initState() {
     super.initState();
@@ -182,7 +185,7 @@ class _GameScreenState extends State<GameScreen> {
             startCountdown();
           });
         }
-      } else if (isGameStarted) {
+      } else if (isGameStarted && !_isActionCooldown) {
         if (event.data[2].abs() > 9 && !_isTriggered) {
           if (event.data[2] > 0) {
             onPass();
@@ -190,6 +193,7 @@ class _GameScreenState extends State<GameScreen> {
             onCorrect();
           }
           _isTriggered = true;
+          _startActionCooldown();
         } else if (event.data[2].abs() < 3 && _isTriggered) {
           _resetToNeutral();
         }
@@ -197,7 +201,19 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  void _startActionCooldown() {
+    setState(() {
+      _isActionCooldown = true;
+    });
+    Future.delayed(_cooldownDuration, () {
+      setState(() {
+        _isActionCooldown = false;
+      });
+    });
+  }
+
   void onCorrect() {
+    if (_isActionCooldown) return;
     Vibration.vibrate(duration: 350);
     _playSound('correct.mp3');
     setState(() {
@@ -206,9 +222,11 @@ class _GameScreenState extends State<GameScreen> {
       _backgroundColors = [Colors.green.shade700, Colors.green.shade300];
       _displayText = 'CORRECT!';
     });
+    _startActionCooldown();
   }
 
   void onPass() {
+    if (_isActionCooldown) return;
     Vibration.vibrate(duration: 175);
     if (mounted) {
       setState(() {
@@ -217,9 +235,11 @@ class _GameScreenState extends State<GameScreen> {
         _displayText = 'PASS';
       });
     }
+    _startActionCooldown();
   }
 
   void _resetToNeutral() {
+    if (_isActionCooldown) return;
     setState(() {
       _isTriggered = false;
       _backgroundColors = [Colors.blue.shade700, Colors.blue.shade300];

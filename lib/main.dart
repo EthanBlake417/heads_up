@@ -54,6 +54,8 @@ class HomePage extends StatelessWidget {
     Deck('Fashion', Icons.shopping_bag),
     Deck('Inventions', Icons.lightbulb),
     Deck('Disney', FontAwesomeIcons.crown),
+    Deck('Olympic Sports', Icons.sports_gymnastics),
+    Deck('Board Games', Icons.casino),
     Deck('Lord of the Rings', FontAwesomeIcons.ring),
     Deck('Chess', FontAwesomeIcons.chessKnight),
     Deck('Harry Potter', FontAwesomeIcons.wandSparkles),

@@ -255,7 +255,7 @@ class _GameScreenState extends State<GameScreen> {
       _displayText = "Time's Up!";
       _backgroundColors = [Colors.red.shade700, Colors.red.shade300];
     });
-    Vibration.vibrate(duration: 500);
+    Vibration.vibrate(duration: 1000);
 
     Future.delayed(const Duration(seconds: 1), () {
       Navigator.pushReplacement(

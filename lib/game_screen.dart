@@ -169,7 +169,7 @@ class _GameScreenState extends State<GameScreen> {
     );
     _accelerometerSubscription = stream.listen((SensorEvent event) {
       if (_isPlacingOnForehead) {
-        if (event.data[2].abs() < 1) {
+        if (event.data[2].abs() < 3) {
           // Phone is roughly horizontal
           setState(() {
             _isPlacingOnForehead = false;
@@ -194,7 +194,7 @@ class _GameScreenState extends State<GameScreen> {
           }
           _isTriggered = true;
           _startActionCooldown();
-        } else if (event.data[2].abs() < 3 && _isTriggered) {
+        } else if (event.data[2].abs() < 5 && _isTriggered) {
           _resetToNeutral();
         }
       }

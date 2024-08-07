@@ -11,8 +11,9 @@ import 'package:vibration/vibration.dart';
 
 class GameScreen extends StatefulWidget {
   final String deckName;
+  final List<String> usedWords;
 
-  const GameScreen({Key? key, required this.deckName}) : super(key: key);
+  const GameScreen({Key? key, required this.deckName, required this.usedWords}) : super(key: key);
 
   @override
   _GameScreenState createState() => _GameScreenState();
@@ -58,6 +59,7 @@ class _GameScreenState extends State<GameScreen> {
     ]);
     _loadSettings();
     words = getWordsForDeck(widget.deckName);
+    words = List.from(words)..removeWhere((word) => widget.usedWords.contains(word));
     usedWords = List.filled(words.length, false);
     currentWord = getNextWord();
     _displayText = 'Place on Forehead';
@@ -137,7 +139,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   String getNextWord() {
-    if (usedWords.every((used) => used)) return 'Game Over';
+    if (usedWords.every((used) => used)) return 'No More Words in this Deck';
     final random = Random();
     int index;
     do {
@@ -257,6 +259,9 @@ class _GameScreenState extends State<GameScreen> {
     });
     Vibration.vibrate(duration: 1000);
 
+    widget.usedWords.addAll(correctWords);
+    widget.usedWords.addAll(passedWords);
+
     Future.delayed(const Duration(seconds: 1), () {
       Navigator.pushReplacement(
         context,
@@ -266,6 +271,7 @@ class _GameScreenState extends State<GameScreen> {
             deckName: widget.deckName,
             correctWords: correctWords,
             passedWords: passedWords,
+            usedWords: widget.usedWords,
           ),
         ),
       );

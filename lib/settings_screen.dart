@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  final List<String> usedWords;
+  final VoidCallback resetUsedWords;
+
+  const SettingsScreen({Key? key, required this.usedWords, required this.resetUsedWords}) : super(key: key);
 
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
@@ -84,6 +87,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   });
                 }
               },
+            ),
+          ),
+          ListTile(
+            title: const Text('Reset Used Words'),
+            subtitle: const Text('Clear the list of words used in previous games'),
+            trailing: ElevatedButton(
+              onPressed: () {
+                widget.resetUsedWords();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Used words list has been reset')),
+                );
+              },
+              child: const Text('Reset'),
             ),
           ),
         ],

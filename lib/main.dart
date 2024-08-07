@@ -4,33 +4,45 @@ import 'package:heads_up/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SharedPreferences.getInstance(); // Initialize SharedPreferences
-  runApp(const MyApp());
+  await SharedPreferences.getInstance();
+  runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final List<String> usedWords = [];
+
+  void resetUsedWords() {
+    setState(() {
+      usedWords.clear();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Heads Up', // Changed from 'Heads Up Clone'
+      title: 'Heads Up',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomePage(title: 'Heads Up'), // Changed from 'Heads Up Clone'
+      home: HomePage(title: 'Heads Up', usedWords: usedWords, resetUsedWords: resetUsedWords),
     );
   }
 }
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key, required this.title});
-
   final String title;
+  final List<String> usedWords;
+  final VoidCallback resetUsedWords;
+
+  const HomePage({Key? key, required this.title, required this.usedWords, required this.resetUsedWords}) : super(key: key);
 
   final List<Deck> decks = const [
     Deck('All Categories', Icons.category),
@@ -68,8 +80,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: // In the HomePage class
-          AppBar(
+      appBar: AppBar(
         title: Text(title),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
@@ -80,7 +91,7 @@ class HomePage extends StatelessWidget {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                MaterialPageRoute(builder: (context) => SettingsScreen(usedWords: usedWords, resetUsedWords: resetUsedWords)),
               );
             },
           ),
@@ -104,7 +115,7 @@ class HomePage extends StatelessWidget {
           ),
           itemCount: decks.length,
           itemBuilder: (context, index) {
-            return DeckCard(deck: decks[index]);
+            return DeckCard(deck: decks[index], usedWords: usedWords);
           },
         ),
       ),
@@ -121,8 +132,9 @@ class Deck {
 
 class DeckCard extends StatelessWidget {
   final Deck deck;
+  final List<String> usedWords;
 
-  const DeckCard({super.key, required this.deck});
+  const DeckCard({Key? key, required this.deck, required this.usedWords}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +146,7 @@ class DeckCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => GameScreen(deckName: deck.name),
+              builder: (context) => GameScreen(deckName: deck.name, usedWords: usedWords),
             ),
           );
         },

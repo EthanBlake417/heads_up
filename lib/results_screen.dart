@@ -6,6 +6,7 @@ class ResultsScreen extends StatelessWidget {
   final String deckName;
   final List<String> correctWords;
   final List<String> passedWords;
+  final List<String> usedWords;
 
   const ResultsScreen({
     Key? key,
@@ -13,6 +14,7 @@ class ResultsScreen extends StatelessWidget {
     required this.deckName,
     required this.correctWords,
     required this.passedWords,
+    required this.usedWords,
   }) : super(key: key);
 
   @override
@@ -111,7 +113,7 @@ class ResultsScreen extends StatelessWidget {
                       Navigator.pushReplacement(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => GameScreen(deckName: deckName),
+                          builder: (context) => GameScreen(deckName: deckName, usedWords: usedWords),
                         ),
                       );
                     },

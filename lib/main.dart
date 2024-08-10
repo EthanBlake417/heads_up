@@ -61,6 +61,8 @@ class HomePage extends StatelessWidget {
     Deck('Brands', Icons.branding_watermark),
     Deck('Famous Landmarks', FontAwesomeIcons.landmark),
     Deck('Slang', Icons.emoji_emotions),
+    Deck('Every Day Objects', Icons.kitchen),
+    Deck('Technology', Icons.lightbulb),
     Deck('Mythology', Icons.auto_stories),
     Deck('Video Games', Icons.gamepad),
     Deck('Nature', Icons.nature),

@@ -1,6 +1,7 @@
-// Update DeckEditorScreen to use the IconMapping utility
+// Enhanced DeckEditorScreen with bulk word import and improved Firebase saving
 import 'package:flutter/material.dart';
 import 'package:heads_up/repositories/category_repository.dart';
+import 'package:heads_up/services/firebase_service.dart';
 import 'package:heads_up/models/category_model.dart';
 import 'package:heads_up/models/word_model.dart';
 import 'package:heads_up/utils/icon_mapping.dart';
@@ -27,16 +28,19 @@ class DeckEditorScreen extends StatefulWidget {
 
 class _DeckEditorScreenState extends State<DeckEditorScreen> {
   final CategoryRepository _categoryRepository = CategoryRepository();
+  final FirebaseService _firebaseService = FirebaseService();
   final TextEditingController _wordController = TextEditingController();
+  final TextEditingController _bulkWordController = TextEditingController();
   final _uuid = Uuid();
   
   List<String> _words = [];
   bool _isLoading = true;
   bool _isSaving = false;
-  bool _shouldSubmitToFirebase = false;
   String _statusMessage = '';
   String _selectedIcon = 'category'; // Default icon key
   IconData _iconData = Icons.category; // Default icon
+  
+  bool _showBulkImport = false;
   
   @override
   void initState() {
@@ -52,12 +56,13 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
     
     if (!widget.isNewDeck) {
       try {
-        final category = await _categoryRepository.getCategoryByName(widget.deckName);
+        // For existing decks, load data directly from Firebase
+        final category = await _firebaseService.getCategoryById(widget.deckId);
         if (category == null) {
           setState(() {
             _isLoading = false;
             _words = [];
-            _statusMessage = 'Category not found';
+            _statusMessage = 'Category not found on Firebase';
           });
           return;
         }
@@ -66,7 +71,9 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
         _selectedIcon = category.icon;
         _iconData = IconMapping.getIconFromKey(_selectedIcon);
         
-        final wordsList = await _categoryRepository.getWordsForCategory(widget.deckName);
+        // Load words directly from Firebase
+        final wordModels = await _firebaseService.getWordsForCategory(widget.deckId);
+        final wordsList = wordModels.map((w) => w.word).toList();
         
         if (mounted) {
           setState(() {
@@ -76,7 +83,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
           });
         }
       } catch (e) {
-        print('Error loading words: $e');
+        print('Error loading words from Firebase: $e');
         
         if (mounted) {
           setState(() {
@@ -87,7 +94,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error loading words: ${e.toString()}'),
+              content: Text('Error loading words from Firebase: ${e.toString()}'),
               backgroundColor: Colors.red,
             ),
           );
@@ -128,6 +135,83 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
     });
   }
   
+  // Process bulk word import
+  void _processBulkWords() {
+    final wordListText = _bulkWordController.text.trim();
+    if (wordListText.isEmpty) return;
+    
+    List<String> newWords = [];
+    
+    // Try parsing as one-word-per-line first
+    if (wordListText.contains('\n')) {
+      newWords = wordListText
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .map((line) => line.trim())
+          .toList();
+    } 
+    // If that doesn't yield much, try comma-separated
+    else if (wordListText.contains(',')) {
+      newWords = wordListText
+          .split(',')
+          .where((word) => word.trim().isNotEmpty)
+          .map((word) => word.trim())
+          .toList();
+    }
+    // Try other separators if needed
+    else if (wordListText.contains(';')) {
+      newWords = wordListText
+          .split(';')
+          .where((word) => word.trim().isNotEmpty)
+          .map((word) => word.trim())
+          .toList();
+    }
+    // Last resort, just split by whitespace
+    else {
+      newWords = wordListText
+          .split(RegExp(r'\s+'))
+          .where((word) => word.trim().isNotEmpty)
+          .map((word) => word.trim())
+          .toList();
+    }
+    
+    // Clean up and deduplicate the words
+    newWords = newWords
+        .where((word) => word.trim().length > 1) // Ensure words are at least 2 characters
+        .toList();
+    
+    // Add new words and remove duplicates
+    setState(() {
+      for (var word in newWords) {
+        if (!_words.contains(word)) {
+          _words.add(word);
+        }
+      }
+      
+      // Clear the bulk input
+      _bulkWordController.clear();
+      // Hide the bulk input after processing
+      _showBulkImport = false;
+    });
+    
+    // Show success message
+    if (newWords.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added ${newWords.length} new unique words'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No new unique words found in the text'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+  
   Future<void> _saveDeck() async {
     if (_words.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,71 +222,89 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
     
     setState(() {
       _isSaving = true;
-      _statusMessage = 'Saving deck...';
+      _statusMessage = 'Saving deck to Firebase...';
     });
     
     try {
-      // Create or update the category and words locally
+      // Generate a valid category ID
+      final String categoryId = widget.isNewDeck ? _uuid.v4() : widget.deckId;
+      
+      // Create or update the category
       final CategoryModel category = CategoryModel(
-        id: widget.isNewDeck ? _uuid.v4() : widget.deckId,
+        id: categoryId,
         name: widget.deckName,
-        icon: _selectedIcon, // Use the selected icon key
+        icon: _selectedIcon,
         lastUpdated: DateTime.now().millisecondsSinceEpoch,
       );
       
+      // Create word models for all words
       final List<WordModel> wordModels = _words.map((word) => WordModel(
         id: _uuid.v4(),
-        categoryId: category.id,
+        categoryId: categoryId,
         word: word,
       )).toList();
       
-      // Save to local database
-      await _categoryRepository.saveCustomDeck(category, wordModels);
+      // First try to save to Firebase
+      print('Saving to Firebase: ${category.name} with ${wordModels.length} words');
+      final success = await _firebaseService.saveCategoryToFirebase(category, wordModels);
       
-      // If the user wants to submit to Firebase for approval
-      if (_shouldSubmitToFirebase) {
-        setState(() {
-          _statusMessage = 'Submitting to online store...';
-        });
-        // await _categoryRepository.submitDeckToFirebase(category, wordModels);
-      }
-      
-      // Only show success message and call callback if we're still mounted
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Deck saved successfully!'),
-            backgroundColor: Colors.green,
-          )
-        );
+      if (success) {
+        // Then save to local database for immediate use
+        print('Saving locally: ${category.name}');
+        await _categoryRepository.saveCustomDeck(category, wordModels);
         
-        // Call the callback if provided
-        if (widget.onSaveCallback != null) {
-          widget.onSaveCallback!();
-        }
-        
-        // Use Navigator.pop with a delay to avoid black screen
-        Future.delayed(Duration(milliseconds: 100), () {
-          if (mounted) {
-            Navigator.pop(context, true); // Return success
+        // Only show success message and call callback if we're still mounted
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Deck saved successfully to Firebase!'),
+              backgroundColor: Colors.green,
+            )
+          );
+          
+          // Call the callback if provided
+          if (widget.onSaveCallback != null) {
+            widget.onSaveCallback!();
           }
-        });
+          
+          // Wait a moment before navigating back to avoid black screen
+          await Future.delayed(Duration(milliseconds: 300));
+          
+          if (mounted) {
+            // Important: Use correct navigation approach
+            Navigator.of(context).pop(true); // Return success
+          }
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isSaving = false;
+            _statusMessage = '';
+          });
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error saving deck to Firebase. Please try again.'),
+              backgroundColor: Colors.red,
+            )
+          );
+        }
       }
     } catch (e) {
       print('Error saving deck: $e');
       
       if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _statusMessage = '';
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error saving deck: ${e.toString()}'),
             backgroundColor: Colors.red,
           )
         );
-        
-        setState(() {
-          _isSaving = false;
-          _statusMessage = '';
-        });
       }
     }
   }
@@ -314,7 +416,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.isNewDeck ? 'Create New Deck' : 'Edit Deck: ${widget.deckName}'),
+          title: Text(widget.isNewDeck ? 'Create New Deck' : 'Edit Firebase Deck: ${widget.deckName}'),
           backgroundColor: Colors.blue.shade700,
           foregroundColor: Colors.white,
           actions: [
@@ -331,219 +433,313 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
               IconButton(
                 icon: Icon(Icons.save),
                 onPressed: _saveDeck,
-                tooltip: 'Save Deck',
+                tooltip: 'Save to Firebase',
               ),
           ],
         ),
-        body: _isLoading
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text(_statusMessage),
-                  ],
-                ),
-              )
-            : Stack(
-                children: [
-                  Column(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.purple.shade200, Colors.blue.shade100],
+            ),
+          ),
+          child: _isLoading
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Icon selection
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Row(
-                              children: [
-                                // Use the utility to check for FontAwesome icons
-                                IconMapping.isFontAwesomeIcon(_iconData)
-                                    ? FaIcon(_iconData, size: 48, color: Colors.blue.shade700)
-                                    : Icon(_iconData, size: 48, color: Colors.blue.shade700),
-                                SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Deck Icon',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(_statusMessage),
+                    ],
+                  ),
+                )
+              : Stack(
+                  children: [
+                    Column(
+                      children: [
+                        // Icon selection
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  // Use the utility to check for FontAwesome icons
+                                  IconMapping.isFontAwesomeIcon(_iconData)
+                                      ? FaIcon(_iconData, size: 48, color: Colors.blue.shade700)
+                                      : Icon(_iconData, size: 48, color: Colors.blue.shade700),
+                                  SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Deck Icon',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        'Choose an icon to represent this deck',
-                                        style: TextStyle(fontSize: 14),
-                                      ),
-                                    ],
+                                        Text(
+                                          'Choose an icon to represent this deck',
+                                          style: TextStyle(fontSize: 14),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                ElevatedButton(
-                                  onPressed: _showIconPicker,
-                                  child: Text('Change'),
-                                ),
-                              ],
+                                  ElevatedButton(
+                                    onPressed: _showIconPicker,
+                                    child: Text('Change'),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      // Word input
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _wordController,
-                                decoration: InputDecoration(
-                                  labelText: 'Add a word',
-                                  hintText: 'Enter a word to add to the deck',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.add_circle_outline),
+                        // Word input
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _wordController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Add a word',
+                                    hintText: 'Enter a word to add to the deck',
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.add_circle_outline),
+                                  ),
+                                  onSubmitted: (_) => _addWord(),
+                                  textInputAction: TextInputAction.done,
                                 ),
-                                onSubmitted: (_) => _addWord(),
-                                textInputAction: TextInputAction.done,
                               ),
-                            ),
-                            SizedBox(width: 16),
-                            ElevatedButton(
-                              onPressed: _addWord,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade700,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(vertical: 16),
+                              SizedBox(width: 16),
+                              ElevatedButton(
+                                onPressed: _addWord,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade700,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                ),
+                                child: Text('Add'),
                               ),
-                              child: Text('Add'),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: CheckboxListTile(
-                          title: Text('Submit to Online Store'),
-                          subtitle: Text('Allow other users to download this deck'),
-                          value: _shouldSubmitToFirebase,
-                          onChanged: (value) {
-                            setState(() {
-                              _shouldSubmitToFirebase = value ?? false;
-                            });
-                          },
-                        ),
-                      ),
-                      Divider(),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Words (${_words.length})',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (_words.isNotEmpty)
+                        // Bulk import option
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
                               TextButton.icon(
-                                icon: Icon(Icons.sort_by_alpha),
-                                label: Text('Sort Alphabetically'),
+                                icon: Icon(_showBulkImport ? Icons.expand_less : Icons.expand_more),
+                                label: Text(_showBulkImport ? 'Hide Bulk Import' : 'Show Bulk Import'),
                                 onPressed: () {
                                   setState(() {
-                                    _words.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                                    _showBulkImport = !_showBulkImport;
                                   });
                                 },
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: _words.isEmpty
-                            ? Center(
+                        // Bulk import area
+                        if (_showBulkImport)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Card(
+                              elevation: 4,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.info_outline, size: 48, color: Colors.grey),
-                                    SizedBox(height: 16),
                                     Text(
-                                      'No words added yet',
-                                      style: TextStyle(fontSize: 18, color: Colors.grey),
+                                      'Bulk Import Words',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue.shade800,
+                                      ),
                                     ),
                                     SizedBox(height: 8),
                                     Text(
-                                      'Add words using the field above',
-                                      style: TextStyle(fontSize: 14, color: Colors.grey),
+                                      'Paste a list of words below (one per line or comma-separated):',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    SizedBox(height: 8),
+                                    TextField(
+                                      controller: _bulkWordController,
+                                      decoration: InputDecoration(
+                                        hintText: 'Example:\nWord 1\nWord 2\nWord 3\n\nor: Word 1, Word 2, Word 3',
+                                        border: OutlineInputBorder(),
+                                        alignLabelWithHint: true,
+                                      ),
+                                      maxLines: 8,
+                                    ),
+                                    SizedBox(height: 16),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        ElevatedButton(
+                                          onPressed: _processBulkWords,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green.shade600,
+                                            foregroundColor: Colors.white,
+                                          ),
+                                          child: Text('Process Words'),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                              )
-                            : ListView.builder(
-                                itemCount: _words.length,
-                                itemBuilder: (context, index) {
-                                  final word = _words[index];
-                                  return Dismissible(
-                                    key: Key('word-$word-$index'),
-                                    direction: DismissDirection.endToStart,
-                                    background: Container(
-                                      alignment: Alignment.centerRight,
-                                      padding: EdgeInsets.only(right: 20.0),
-                                      color: Colors.red,
-                                      child: Icon(
-                                        Icons.delete,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    onDismissed: (direction) {
-                                      _removeWord(word);
-                                    },
-                                    child: ListTile(
-                                      title: Text(
-                                        word,
-                                        style: TextStyle(fontSize: 16),
-                                      ),
-                                      trailing: IconButton(
-                                        icon: Icon(Icons.delete, color: Colors.red),
-                                        onPressed: () => _removeWord(word),
-                                      ),
-                                    ),
-                                  );
-                                },
                               ),
-                      ),
-                    ],
-                  ),
-                  // Status overlay
-                  if (_isSaving)
-                    Container(
-                      color: Colors.black.withOpacity(0.3),
-                      child: Center(
-                        child: Card(
-                          elevation: 8,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(24.0),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
+                        // Firebase note
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.blue.shade200),
+                            ),
+                            child: Row(
                               children: [
-                                CircularProgressIndicator(),
-                                SizedBox(height: 16),
-                                Text(
-                                  _statusMessage.isEmpty ? 'Saving...' : _statusMessage,
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                Icon(Icons.cloud_upload, color: Colors.blue.shade700),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Changes will be saved to Firebase when you press Save',
+                                    style: TextStyle(
+                                      color: Colors.blue.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                      ),
+                        Divider(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Words (${_words.length})',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (_words.isNotEmpty)
+                                TextButton.icon(
+                                  icon: Icon(Icons.sort_by_alpha),
+                                  label: Text('Sort Alphabetically'),
+                                  onPressed: () {
+                                    setState(() {
+                                      _words.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: _words.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.info_outline, size: 48, color: Colors.grey),
+                                      SizedBox(height: 16),
+                                      Text(
+                                        'No words added yet',
+                                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Add words using the field above or bulk import',
+                                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.builder(
+                                  itemCount: _words.length,
+                                  itemBuilder: (context, index) {
+                                    final word = _words[index];
+                                    return Dismissible(
+                                      key: Key('word-$word-$index'),
+                                      direction: DismissDirection.endToStart,
+                                      background: Container(
+                                        alignment: Alignment.centerRight,
+                                        padding: EdgeInsets.only(right: 20.0),
+                                        color: Colors.red,
+                                        child: Icon(
+                                          Icons.delete,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      onDismissed: (direction) {
+                                        _removeWord(word);
+                                      },
+                                      child: ListTile(
+                                        title: Text(
+                                          word,
+                                          style: TextStyle(fontSize: 16),
+                                        ),
+                                        trailing: IconButton(
+                                          icon: Icon(Icons.delete, color: Colors.red),
+                                          onPressed: () => _removeWord(word),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
                     ),
-                ],
-              ),
+                    // Status overlay
+                    if (_isSaving)
+                      Container(
+                        color: Colors.black.withOpacity(0.3),
+                        child: Center(
+                          child: Card(
+                            elevation: 8,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    _statusMessage.isEmpty ? 'Saving to Firebase...' : _statusMessage,
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
       ),
     );
   }

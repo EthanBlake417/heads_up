@@ -1,7 +1,11 @@
 // deck_management_screen.dart
 import 'package:flutter/material.dart';
 import 'package:heads_up/repositories/category_repository.dart';
+import 'package:heads_up/services/firebase_service.dart';
 import 'package:heads_up/deck_editor_screen.dart';
+import 'package:heads_up/models/category_model.dart';
+import 'package:heads_up/utils/icon_mapping.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckManagementScreen extends StatefulWidget {
   final Function(int) navigateToTab;
@@ -19,39 +23,41 @@ class DeckManagementScreen extends StatefulWidget {
 
 class _DeckManagementScreenState extends State<DeckManagementScreen> {
   final CategoryRepository _categoryRepository = CategoryRepository();
-  List<Map<String, dynamic>> _decks = [];
+  final FirebaseService _firebaseService = FirebaseService();
+  List<CategoryModel> _firebaseDecks = [];
   bool _isLoading = true;
   bool _isProcessing = false; // Added to track processing state
 
   @override
   void initState() {
     super.initState();
-    _loadCategories();
+    _loadFirebaseCategories();
   }
 
-  Future<void> _loadCategories() async {
+  Future<void> _loadFirebaseCategories() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final categories = await _categoryRepository.getAllCategories();
+      // Get categories directly from Firebase instead of local database
+      final categories = await _firebaseService.getCategories();
       
       setState(() {
-        _decks = categories.where((c) => c['name'] != 'All Categories').toList();
+        _firebaseDecks = categories;
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading categories: $e');
+      print('Error loading Firebase categories: $e');
       setState(() {
         _isLoading = false;
-        _decks = [];
+        _firebaseDecks = [];
       });
       
       // Show error snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading decks: ${e.toString()}'),
+          content: Text('Error loading decks from Firebase: ${e.toString()}'),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
@@ -85,7 +91,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
         );
         
         // Refresh both screens
-        await _loadCategories();
+        await _loadFirebaseCategories();
         widget.refreshHomeTab();
         
       } else {
@@ -117,228 +123,237 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Manage Decks'),
+        title: Text('Firebase Deck Management'),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         actions: [
           // Add refresh button
           IconButton(
             icon: Icon(Icons.refresh),
-            onPressed: _isProcessing ? null : _loadCategories,
-            tooltip: 'Refresh deck list',
+            onPressed: _isProcessing ? null : _loadFirebaseCategories,
+            tooltip: 'Refresh deck list from Firebase',
           ),
         ],
       ),
       body: Stack(
         children: [
-          _isLoading
-              ? Center(child: CircularProgressIndicator())
-              : Column(
-                  children: [
-                    // New Deck button at the top
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
-                          foregroundColor: Colors.white,
-                          minimumSize: Size(double.infinity, 56),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.purple.shade200, Colors.blue.shade100],
+              ),
+            ),
+            child: _isLoading
+                ? Center(child: CircularProgressIndicator())
+                : Column(
+                    children: [
+                      // New Deck button at the top
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                            minimumSize: Size(double.infinity, 56),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
+                          icon: Icon(Icons.add_circle),
+                          label: Text(
+                            'Create New Firebase Deck',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: _isProcessing ? null : () {
+                            widget.navigateToTab(2);
+                          },
                         ),
-                        icon: Icon(Icons.add_circle),
-                        label: Text(
-                          'Create New Deck',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        onPressed: _isProcessing ? null : () {
-                          widget.navigateToTab(2);
-                        },
                       ),
-                    ),
-                    // Divider
-                    Divider(height: 1, thickness: 1),
-                    // Deck list
-                    Expanded(
-                      child: _decks.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.folder_off, size: 64, color: Colors.grey),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'No decks found',
-                                    style: TextStyle(fontSize: 18),
-                                  ),
-                                ],
+                      // Firebase label
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.cloud, color: Colors.blue.shade700),
+                            SizedBox(width: 8),
+                            Text(
+                              'Firebase Decks',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade800,
                               ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _loadCategories,
-                              child: ListView.builder(
-                                itemCount: _decks.length,
-                                itemBuilder: (context, index) {
-                                  final deck = _decks[index];
-                                  return Dismissible(
-                                    key: Key(deck['id'] ?? 'deck-$index'),
-                                    direction: DismissDirection.endToStart,
-                                    background: Container(
-                                      alignment: Alignment.centerRight,
-                                      padding: EdgeInsets.only(right: 20.0),
-                                      color: Colors.red,
-                                      child: Icon(
-                                        Icons.delete,
-                                        color: Colors.white,
-                                      ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Divider
+                      Divider(height: 1, thickness: 1),
+                      // Deck list
+                      Expanded(
+                        child: _firebaseDecks.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.cloud_off, size: 64, color: Colors.grey),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'No decks found on Firebase',
+                                      style: TextStyle(fontSize: 18),
                                     ),
-                                    confirmDismiss: (direction) async {
-                                      return await showDialog(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          title: Text('Delete Deck'),
-                                          content: Text('Are you sure you want to delete the deck "${deck['name']}"? This cannot be undone.'),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(context, false),
-                                              child: Text('Cancel'),
-                                            ),
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.red,
-                                                foregroundColor: Colors.white,
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadFirebaseCategories,
+                                child: ListView.builder(
+                                  itemCount: _firebaseDecks.length,
+                                  itemBuilder: (context, index) {
+                                    final deck = _firebaseDecks[index];
+                                    final IconData iconData = IconMapping.getIconFromKey(deck.icon);
+                                    
+                                    return Dismissible(
+                                      key: Key(deck.id),
+                                      direction: DismissDirection.endToStart,
+                                      background: Container(
+                                        alignment: Alignment.centerRight,
+                                        padding: EdgeInsets.only(right: 20.0),
+                                        color: Colors.red,
+                                        child: Icon(
+                                          Icons.delete,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      confirmDismiss: (direction) async {
+                                        return await showDialog(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text('Delete Deck from Firebase'),
+                                            content: Text('Are you sure you want to delete the deck "${deck.name}" from Firebase? This will remove it for all users and cannot be undone.'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context, false),
+                                                child: Text('Cancel'),
                                               ),
-                                              onPressed: () => Navigator.pop(context, true),
-                                              child: Text('Delete'),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                    onDismissed: (direction) {
-                                      _processAction(
-                                        actionName: 'deck deletion',
-                                        action: () => _categoryRepository.deleteDeck(deck['id']),
-                                        successMessage: 'Deck "${deck['name']}" deleted successfully',
-                                        errorMessage: 'Failed to delete deck "${deck['name']}"',
-                                      );
-                                      
-                                      // Optimistically remove from the list
-                                      setState(() {
-                                        _decks.removeAt(index);
-                                      });
-                                    },
-                                    child: Card(
-                                      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                      child: ListTile(
-                                        leading: Icon(
-                                          deck['icon'],
-                                          color: deck['isCustom'] == true ? Colors.purple.shade700 : Colors.blue.shade700,
-                                          size: 32,
-                                        ),
-                                        title: Text(
-                                          deck['name'],
-                                          style: TextStyle(fontWeight: FontWeight.bold),
-                                        ),
-                                        subtitle: deck['isCustom'] == true
-                                            ? Text('Custom deck')
-                                            : null,
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(Icons.edit, color: Colors.blue.shade700),
-                                              onPressed: _isProcessing ? null : () {
-                                                if (deck.containsKey('id')) {
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.red,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                onPressed: () => Navigator.pop(context, true),
+                                                child: Text('Delete'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                      onDismissed: (direction) {
+                                        _processAction(
+                                          actionName: 'deck deletion from Firebase',
+                                          action: () => _firebaseService.deleteCategoryFromFirebase(deck.id),
+                                          successMessage: 'Deck "${deck.name}" deleted from Firebase successfully',
+                                          errorMessage: 'Failed to delete deck "${deck.name}" from Firebase',
+                                        );
+                                        
+                                        // Optimistically remove from the list
+                                        setState(() {
+                                          _firebaseDecks.removeAt(index);
+                                        });
+                                      },
+                                      child: Card(
+                                        margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        child: ListTile(
+                                          leading: IconMapping.isFontAwesomeIcon(iconData)
+                                            ? FaIcon(iconData, color: Colors.blue.shade700, size: 32)
+                                            : Icon(iconData, color: Colors.blue.shade700, size: 32),
+                                          title: Text(
+                                            deck.name,
+                                            style: TextStyle(fontWeight: FontWeight.bold),
+                                          ),
+                                          subtitle: Text(
+                                            'Last updated: ${_formatDate(deck.lastUpdated)}',
+                                            style: TextStyle(fontSize: 12),
+                                          ),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: Icon(Icons.edit, color: Colors.blue.shade700),
+                                                onPressed: _isProcessing ? null : () {
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (context) => DeckEditorScreen(
-                                                        deckId: deck['id'],
-                                                        deckName: deck['name'],
+                                                        deckId: deck.id,
+                                                        deckName: deck.name,
                                                         isNewDeck: false,
                                                         onSaveCallback: () {
                                                           // Refresh both screens when saving
-                                                          _loadCategories();
+                                                          _loadFirebaseCategories();
                                                           widget.refreshHomeTab();
                                                         },
                                                       ),
                                                     ),
                                                   );
-                                                } else {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text('Error: Deck ID not found'),
-                                                      backgroundColor: Colors.red,
+                                                },
+                                              ),
+                                              IconButton(
+                                                icon: Icon(Icons.delete, color: Colors.red),
+                                                onPressed: _isProcessing ? null : () {
+                                                  showDialog(
+                                                    context: context,
+                                                    builder: (context) => AlertDialog(
+                                                      title: Text('Delete Deck from Firebase'),
+                                                      content: Text('Are you sure you want to delete the deck "${deck.name}" from Firebase? This will remove it for all users and cannot be undone.'),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () {
+                                                            Navigator.pop(context);
+                                                          },
+                                                          child: Text('Cancel'),
+                                                        ),
+                                                        ElevatedButton(
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.red,
+                                                            foregroundColor: Colors.white,
+                                                          ),
+                                                          onPressed: () {
+                                                            Navigator.pop(context);
+                                                            
+                                                            // Optimistically remove from the list
+                                                            setState(() {
+                                                              _firebaseDecks.remove(deck);
+                                                            });
+                                                            
+                                                            _processAction(
+                                                              actionName: 'deck deletion from Firebase',
+                                                              action: () => _firebaseService.deleteCategoryFromFirebase(deck.id),
+                                                              successMessage: 'Deck "${deck.name}" deleted from Firebase successfully',
+                                                              errorMessage: 'Failed to delete deck "${deck.name}" from Firebase',
+                                                            );
+                                                          },
+                                                          child: Text('Delete'),
+                                                        ),
+                                                      ],
                                                     ),
                                                   );
-                                                }
-                                              },
-                                            ),
-                                            IconButton(
-                                              icon: Icon(Icons.delete, color: Colors.red),
-                                              onPressed: _isProcessing ? null : () {
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (context) => AlertDialog(
-                                                    title: Text('Delete Deck'),
-                                                    content: Text('Are you sure you want to delete the deck "${deck['name']}"? This cannot be undone.'),
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed: () {
-                                                          Navigator.pop(context);
-                                                        },
-                                                        child: Text('Cancel'),
-                                                      ),
-                                                      ElevatedButton(
-                                                        style: ElevatedButton.styleFrom(
-                                                          backgroundColor: Colors.red,
-                                                          foregroundColor: Colors.white,
-                                                        ),
-                                                        onPressed: () {
-                                                          Navigator.pop(context);
-                                                          
-                                                          if (!deck.containsKey('id')) {
-                                                            ScaffoldMessenger.of(context).showSnackBar(
-                                                              SnackBar(
-                                                                content: Text('Error: Deck ID not found'),
-                                                                backgroundColor: Colors.red,
-                                                              ),
-                                                            );
-                                                            return;
-                                                          }
-                                                          
-                                                          // Optimistically remove from the list
-                                                          setState(() {
-                                                            _decks.remove(deck);
-                                                          });
-                                                          
-                                                          _processAction(
-                                                            actionName: 'deck deletion',
-                                                            action: () => _categoryRepository.deleteDeck(deck['id']),
-                                                            successMessage: 'Deck "${deck['name']}" deleted successfully',
-                                                            errorMessage: 'Failed to delete deck "${deck['name']}"',
-                                                          );
-                                                        },
-                                                        child: Text('Delete'),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
-                                            ),
-                                          ],
+                                                },
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+          ),
           // Overlay a loading indicator when processing
           if (_isProcessing)
             Container(
@@ -369,5 +384,10 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
         ],
       ),
     );
+  }
+  
+  String _formatDate(int timestamp) {
+    final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

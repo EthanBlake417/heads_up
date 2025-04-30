@@ -9,11 +9,13 @@ import 'package:heads_up/utils/admin_mode_manager.dart';
 class SettingsScreen extends StatefulWidget {
   final List<String> usedWords;
   final VoidCallback resetUsedWords;
+  final VoidCallback onAdminModeChanged;
 
   const SettingsScreen({
     Key? key, 
     required this.usedWords, 
-    required this.resetUsedWords
+    required this.resetUsedWords,
+    required this.onAdminModeChanged,
   }) : super(key: key);
 
   @override
@@ -117,6 +119,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: Colors.blue,
         ),
       );
+      
+      // Notify parent about the change
+      widget.onAdminModeChanged();
     } else {
       // If not in admin mode, show auth screen
       Navigator.push(
@@ -129,9 +134,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _isAdminMode = true;
               });
               
+              // Notify parent about the change
+              widget.onAdminModeChanged();
+              
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Admin mode enabled. All changes will sync directly to Firebase.'),
+                  content: Text('Admin mode enabled. You now have access to deck management.'),
                   backgroundColor: Colors.green,
                   duration: Duration(seconds: 5),
                 ),
@@ -151,115 +159,176 @@ class _SettingsScreenState extends State<SettingsScreen> {
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
       ),
-      body: ListView(
-        children: [
-          SwitchListTile(
-            title: const Text('Sound'),
-            value: _soundEnabled,
-            onChanged: (bool value) {
-              setState(() {
-                _soundEnabled = value;
-                _saveSettings();
-              });
-            },
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.blue.shade200, Colors.blue.shade100],
           ),
-          ListTile(
-            title: const Text('Game Duration'),
-            subtitle: Text('$_gameDuration seconds'),
-            trailing: DropdownButton<int>(
-              value: _gameDuration,
-              items: [30, 45, 60, 75, 90, 105, 120].map((int value) {
-                return DropdownMenuItem<int>(
-                  value: value,
-                  child: Text('$value sec'),
-                );
-              }).toList(),
-              onChanged: (int? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _gameDuration = newValue;
-                    _saveSettings();
-                  });
-                }
-              },
-            ),
-          ),
-          ListTile(
-            title: const Text('Reset Used Words'),
-            subtitle: const Text('Clear the list of words used in previous games'),
-            trailing: ElevatedButton(
-              onPressed: () {
-                widget.resetUsedWords();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Used words list has been reset')),
-                );
-              },
-              child: const Text('Reset'),
-            ),
-          ),
-          Divider(),
-          ListTile(
-            title: Text(
-              'Admin Features',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade700,
+        ),
+        child: ListView(
+          children: [
+            Card(
+              margin: EdgeInsets.all(16),
+              elevation: 4,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Game Settings',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                  ),
+                  SwitchListTile(
+                    title: const Text('Sound'),
+                    subtitle: const Text('Enable game sounds and effects'),
+                    value: _soundEnabled,
+                    onChanged: (bool value) {
+                      setState(() {
+                        _soundEnabled = value;
+                        _saveSettings();
+                      });
+                    },
+                  ),
+                  ListTile(
+                    title: const Text('Game Duration'),
+                    subtitle: Text('$_gameDuration seconds'),
+                    trailing: DropdownButton<int>(
+                      value: _gameDuration,
+                      items: [30, 45, 60, 75, 90, 105, 120].map((int value) {
+                        return DropdownMenuItem<int>(
+                          value: value,
+                          child: Text('$value sec'),
+                        );
+                      }).toList(),
+                      onChanged: (int? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            _gameDuration = newValue;
+                            _saveSettings();
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Reset Used Words'),
+                    subtitle: const Text('Clear the list of words used in previous games'),
+                    trailing: ElevatedButton(
+                      onPressed: () {
+                        widget.resetUsedWords();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Used words list has been reset')),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Reset'),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          ListTile(
-            title: Text(
-              'Admin Mode',
-              style: TextStyle(
-                fontWeight: _isAdminMode ? FontWeight.bold : FontWeight.normal,
+            Card(
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              elevation: 4,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Admin Settings',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    title: Text(
+                      'Admin Mode',
+                      style: TextStyle(
+                        fontWeight: _isAdminMode ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _isAdminMode 
+                        ? 'Enabled - You can manage decks and sync with Firebase' 
+                        : 'Disabled - Login required'
+                    ),
+                    leading: Icon(
+                      Icons.admin_panel_settings,
+                      color: _isAdminMode ? Colors.green : Colors.grey,
+                    ),
+                    trailing: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isAdminMode ? Colors.red : Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _toggleAdminMode,
+                      child: Text(_isAdminMode ? 'Disable' : 'Enable'),
+                    ),
+                  ),
+                  if (_isAdminMode) ...[
+                    SwitchListTile(
+                      title: const Text('Enable Word Removal'),
+                      subtitle: const Text('Allow removing played words after each game'),
+                      value: _removeWordsEnabled,
+                      onChanged: (bool value) {
+                        setState(() {
+                          _removeWordsEnabled = value;
+                          _saveSettings();
+                        });
+                      },
+                    ),
+                    ListTile(
+                      title: const Text('Synchronize with Firebase'),
+                      subtitle: const Text('Force refresh all categories and words from the server'),
+                      trailing: ElevatedButton(
+                        onPressed: _isSyncing ? null : _syncWithFirebase,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: _isSyncing 
+                          ? SizedBox(
+                              width: 20, 
+                              height: 20, 
+                              child: CircularProgressIndicator(strokeWidth: 2)
+                            )
+                          : const Text('Sync Now'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            subtitle: Text(
-              _isAdminMode 
-                ? 'Enabled - Make Changes that sync directly to Firebase' 
-                : 'Disabled - Login required'
-            ),
-            leading: Icon(
-              Icons.admin_panel_settings,
-              color: _isAdminMode ? Colors.green : Colors.grey,
-            ),
-            trailing: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _isAdminMode ? Colors.red : Colors.blue.shade700,
-                foregroundColor: Colors.white,
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Heads Up Game v1.0.0',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-              onPressed: _toggleAdminMode,
-              child: Text(_isAdminMode ? 'Disable' : 'Enable'),
             ),
-          ),
-          if (_isAdminMode)
-          SwitchListTile(
-            title: const Text('Enable Word Removal'),
-            subtitle: const Text('Allow removing played words after each game'),
-            value: _removeWordsEnabled,
-            onChanged: (bool value) {
-              setState(() {
-                _removeWordsEnabled = value;
-                _saveSettings();
-              });
-            },
-          ),
-          ListTile(
-            title: const Text('Synchronize with Firebase'),
-            subtitle: const Text('Force refresh all categories and words from the server'),
-            trailing: ElevatedButton(
-              onPressed: _isSyncing ? null : _syncWithFirebase,
-              child: _isSyncing 
-                ? SizedBox(
-                    width: 20, 
-                    height: 20, 
-                    child: CircularProgressIndicator(strokeWidth: 2)
-                  )
-                : const Text('Sync Now'),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -76,6 +76,27 @@ class _MainTabScreenState extends State<MainTabScreen> {
   int _currentIndex = 0;
   // Key to force homepage refresh when returning from custom deck creator
   final GlobalKey<_HomePageState> _homePageKey = GlobalKey<_HomePageState>();
+  bool _isAdminMode = false;
+  final AdminModeManager _adminManager = AdminModeManager();
+  
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminMode();
+  }
+  
+  Future<void> _checkAdminMode() async {
+    final isAdmin = await _adminManager.isAdminModeEnabled();
+    if (mounted) {
+      setState(() {
+        _isAdminMode = isAdmin;
+        // Ensure current index is valid with the new navigation state
+        if (!_isAdminMode && _currentIndex == 1) {
+          _currentIndex = 0;  // Reset to home if manage decks was selected
+        }
+      });
+    }
+  }
   
   void _navigateToTab(int index) {
     setState(() {
@@ -90,8 +111,41 @@ class _MainTabScreenState extends State<MainTabScreen> {
     }
   }
   
+  // Listener for admin mode changes
+  void _onAdminModeChanged() {
+    _checkAdminMode();
+  }
+  
   @override
   Widget build(BuildContext context) {
+    // Define navigation items based on admin mode
+    final navItems = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.category),
+        label: 'Play',
+      ),
+    ];
+    
+    // Add "Manage Decks" only in admin mode
+    if (_isAdminMode) {
+      navItems.add(const BottomNavigationBarItem(
+        icon: Icon(Icons.edit),
+        label: 'Manage Decks',
+      ));
+    }
+    
+    // Add common items for all users
+    navItems.addAll([
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.cloud_download),
+        label: 'Store',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.settings),
+        label: 'Settings',
+      ),
+    ]);
+    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -103,7 +157,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
             usedWords: widget.usedWords, 
             resetUsedWords: widget.resetUsedWords
           ),
-          // Deck Management Screen with refresh callback
+          // Deck Management Screen (only accessible in admin mode)
           DeckManagementScreen(
             navigateToTab: _navigateToTab,
             refreshHomeTab: _refreshHomeTab,
@@ -117,15 +171,15 @@ class _MainTabScreenState extends State<MainTabScreen> {
           // Settings page
           SettingsScreen(
             usedWords: widget.usedWords, 
-            resetUsedWords: widget.resetUsedWords
+            resetUsedWords: widget.resetUsedWords,
+            onAdminModeChanged: _onAdminModeChanged,
           ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex < 2 ? _currentIndex : _currentIndex - 1, // Adjust for hidden tab
+        currentIndex: _getAdjustedIndex(),
         onTap: (index) {
-          // Adjust the index for the hidden tab
-          final actualIndex = index >= 2 ? index + 1 : index;
+          final actualIndex = _getActualIndexFromTap(index);
           setState(() {
             _currentIndex = actualIndex;
           });
@@ -135,31 +189,64 @@ class _MainTabScreenState extends State<MainTabScreen> {
             _refreshHomeTab();
           }
         },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.category),
-            label: 'Play',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.edit),
-            label: 'Manage Decks',
-          ),
-          // Create Deck tab is hidden from bottom navigation
-          BottomNavigationBarItem(
-            icon: Icon(Icons.cloud_download),
-            label: 'Store',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        items: navItems,
         selectedItemColor: Colors.blue.shade700,
         type: BottomNavigationBarType.fixed, // Ensures all labels are visible
       ),
     );
   }
+  
+  // Get the adjusted index for the navigation bar
+  int _getAdjustedIndex() {
+    if (_currentIndex == 0) return 0; // Home tab
+    
+    if (_isAdminMode) {
+      // In admin mode:
+      // 0 = Home
+      // 1 = Manage Decks
+      // 2 = AI Deck Generator (hidden)
+      // 3 = Store
+      // 4 = Settings
+      if (_currentIndex == 1) return 1; // Manage decks
+      if (_currentIndex == 3) return 2; // Store
+      if (_currentIndex == 4) return 3; // Settings
+      return 0; // Default to home for any other case (including hidden AI tab)
+    } else {
+      // In non-admin mode:
+      // 0 = Home
+      // 1 = Manage Decks (not accessible)
+      // 2 = AI Deck Generator (hidden)
+      // 3 = Store
+      // 4 = Settings
+      if (_currentIndex == 3) return 1; // Store (2nd position without admin tab)
+      if (_currentIndex == 4) return 2; // Settings (3rd position without admin tab)
+      return 0; // Default to home
+    }
+  }
+  
+  // Convert tapped index to actual content index
+  int _getActualIndexFromTap(int tappedIndex) {
+    if (_isAdminMode) {
+      // In admin mode:
+      switch (tappedIndex) {
+        case 0: return 0; // Home
+        case 1: return 1; // Manage Decks
+        case 2: return 3; // Store (skip AI generator)
+        case 3: return 4; // Settings
+        default: return 0;
+      }
+    } else {
+      // In non-admin mode (no Manage Decks tab):
+      switch (tappedIndex) {
+        case 0: return 0; // Home
+        case 1: return 3; // Store (skip Manage Decks & AI generator)
+        case 2: return 4; // Settings
+        default: return 0;
+      }
+    }
+  }
 }
+
 class HomePage extends StatefulWidget {
   final String title;
   final List<String> usedWords;
@@ -335,161 +422,6 @@ class SimpleDeckCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-class DeckCard extends StatelessWidget {
-  final String name;
-  final IconData icon;
-  final List<String> usedWords;
-  final bool isCustomDeck;
-  final String deckId;
-  final VoidCallback onRefresh;
-
-  const DeckCard({
-    Key? key,
-    required this.name,
-    required this.icon,
-    required this.usedWords,
-    required this.deckId,
-    this.isCustomDeck = false,
-    required this.onRefresh,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final CategoryRepository _categoryRepository = CategoryRepository();
-
-    return Card(
-      elevation: 4,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isCustomDeck ? Colors.purple.shade300 : Colors.transparent,
-          width: isCustomDeck ? 2 : 0,
-        ),
-      ),
-      child: Stack(
-        children: [
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => GameScreen(deckName: name, usedWords: usedWords),
-                ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 48, color: isCustomDeck ? Colors.purple.shade700 : Colors.blue.shade700),
-                  const SizedBox(height: 8),
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isCustomDeck ? Colors.purple.shade700 : Colors.blue.shade700,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  if (isCustomDeck)
-                    Text(
-                      '(Custom)',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.purple.shade500,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-          if (isCustomDeck || name != 'All Categories')
-            Positioned(
-              top: 0,
-              right: 0,
-              child: PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: Colors.grey.shade700),
-                onSelected: (value) async {
-                  if (value == 'edit') {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DeckEditorScreen(
-                          deckId: deckId,
-                          deckName: name,
-                          isNewDeck: false,
-                        ),
-                      ),
-                    ).then((_) {
-                      // Refresh the deck list when returning
-                      onRefresh();
-                    });
-                  } else if (value == 'delete') {
-                    // Confirm before deleting
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Delete Deck'),
-                        content: Text('Are you sure you want to delete the deck "$name"? This cannot be undone.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            child: Text('Cancel'),
-                          ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                            ),
-                            onPressed: () async {
-                              Navigator.pop(context);
-                              // Delete the deck
-                              await _categoryRepository.deleteDeck(deckId);
-                              onRefresh();
-                            },
-                            child: Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                },
-                itemBuilder: (context) => [
-                  if (name != 'All Categories')
-                    PopupMenuItem<String>(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, color: Colors.blue.shade700),
-                          SizedBox(width: 8),
-                          Text('Edit Deck'),
-                        ],
-                      ),
-                    ),
-                  if (name != 'All Categories')
-                    PopupMenuItem<String>(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Delete Deck'),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-        ],
       ),
     );
   }

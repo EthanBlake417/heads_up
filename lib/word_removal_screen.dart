@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heads_up/repositories/category_repository.dart';
+import 'package:heads_up/utils/admin_mode_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class WordRemovalScreen extends StatefulWidget {
@@ -20,8 +21,23 @@ class WordRemovalScreen extends StatefulWidget {
 
 class _WordRemovalScreenState extends State<WordRemovalScreen> {
   final CategoryRepository _categoryRepository = CategoryRepository();
+  final AdminModeManager _adminManager = AdminModeManager();
   Set<String> _selectedWords = {};
   bool _isLoading = false;
+  bool _isAdminMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminMode();
+  }
+  
+  Future<void> _checkAdminMode() async {
+    final isAdmin = await _adminManager.isAdminModeEnabled();
+    setState(() {
+      _isAdminMode = isAdmin;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +69,34 @@ class _WordRemovalScreenState extends State<WordRemovalScreen> {
                 ),
               ),
             ),
+            // Admin mode indicator
+            if (_isAdminMode)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.admin_panel_settings, color: Colors.green.shade700),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Admin Mode: Words will be removed from Firebase and locally',
+                          style: TextStyle(
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Expanded(
               child: ListView.builder(
                 itemCount: allWords.length,
@@ -142,7 +186,9 @@ class _WordRemovalScreenState extends State<WordRemovalScreen> {
                 child: _isLoading
                     ? CircularProgressIndicator(color: Colors.white)
                     : Text(
-                        'Remove Locally & Request Admin Approval',
+                        _isAdminMode
+                            ? 'Remove Selected Words'
+                            : 'Remove Locally & Request Admin Approval',
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -164,30 +210,36 @@ class _WordRemovalScreenState extends State<WordRemovalScreen> {
     });
 
     try {
-      // Call the repository method to remove the words locally and request approval
+      // Call the repository method to remove the words
       await _categoryRepository.removeWordsFromCategory(
         widget.deckName, 
         _selectedWords.toList()
       );
 
-      // Show a dialog explaining the process
+      // Show a dialog explaining what happened
       await showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('Words Removed Locally'),
+          title: _isAdminMode 
+              ? Text('Words Removed') 
+              : Text('Words Removed Locally'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${_selectedWords.length} words have been removed from your local deck.',
+                _isAdminMode
+                    ? '${_selectedWords.length} words have been removed from Firebase and your local deck.'
+                    : '${_selectedWords.length} words have been removed from your local deck.',
                 style: TextStyle(fontSize: 16),
               ),
-              SizedBox(height: 16),
-              Text(
-                'Additionally, a removal request has been sent to the administrator. If approved, these words will be removed for all users.',
-                style: TextStyle(fontSize: 16),
-              ),
+              if (!_isAdminMode) ...[
+                SizedBox(height: 16),
+                Text(
+                  'Additionally, a removal request has been sent to the administrator. If approved, these words will be removed for all users.',
+                  style: TextStyle(fontSize: 16),
+                ),
+              ],
             ],
           ),
           actions: [

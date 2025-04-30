@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "566517912553",
+    "project_id": "heads-up-2ecfd",
+    "storage_bucket": "heads-up-2ecfd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:566517912553:android:d92379f56deae1d6c83178",
+        "android_client_info": {
+          "package_name": "com.example.heads_up"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4k24prNbRFz8cOPNdNoRdtAe3ZSTTlzQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

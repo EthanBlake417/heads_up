@@ -20,7 +20,7 @@ class Categories {
     'Fashion',
     'Act It Out',
     'Pop Songs',
-    'Classical Pieces'
+    'Classical Pieces',
     'Impressions',
     'Famous Landmarks',
     'Slang',

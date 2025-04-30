@@ -4,10 +4,11 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_sensors/flutter_sensors.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:heads_up/repositories/category_repository.dart';
+import 'package:heads_up/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:heads_up/repositories/category_repository.dart';
+import 'package:heads_up/results_screen.dart';
 import 'package:vibration/vibration.dart';
-import 'results_screen.dart';
 
 class GameScreen extends StatefulWidget {
   final String deckName;
@@ -78,42 +79,100 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  // Updated method to get words from CategoryRepository
-  Future<void> _loadWords() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _displayText = 'Loading...';
-      });
+  // Fix for updated_game_screen.dart
+// Add this method to properly handle loading words from the repository and ensure it works with custom icons
+
+Future<void> _loadWords() async {
+  try {
+    setState(() {
+      _isLoading = true;
+      _displayText = 'Loading...';
+    });
+    
+    // Get words for the selected deck with debugging
+    print('Loading words for deck: ${widget.deckName}');
+    final wordsList = await _categoryRepository.getWordsForCategory(widget.deckName);
+    print('Word list loaded, found ${wordsList.length} words');
+    
+    if (mounted) {
+      // Log the found words for debugging
+      if (wordsList.isEmpty) {
+        print('No words found for ${widget.deckName}');
+      } else {
+        print('First few words: ${wordsList.take(5).join(", ")}');
+      }
       
-      print('Loading words for deck: ${widget.deckName}');
-      final wordsList = await _categoryRepository.getWordsForCategory(widget.deckName);
-      print('Word list loaded, found ${wordsList.length} words');
-      
-      if (mounted) {
-        // Filter out words that have already been used
-        final filteredWords = wordsList.where((word) => !widget.usedWords.contains(word)).toList();
-        print('After filtering used words: ${filteredWords.length} words remaining');
+      // Check if we have words
+      if (wordsList.isEmpty) {
+        // Try getting the words directly from the database
+        final categoryModel = await _categoryRepository.getCategoryByName(widget.deckName);
+        print('Direct category lookup: ${categoryModel?.id ?? "Not found"}');
         
+        if (categoryModel != null) {
+          // Try direct DB query as a fallback
+          final dbHelper = DatabaseHelper();
+          final directWords = await dbHelper.getWordsByCategory(categoryModel.id);
+          print('Direct DB query found ${directWords.length} words');
+          
+          if (directWords.isNotEmpty) {
+            final directWordsList = directWords.map((w) => w.word).toList();
+            
+            // Filter out used words
+            directWordsList.removeWhere((word) => widget.usedWords.contains(word));
+            
+            setState(() {
+              words = directWordsList;
+              usedWords = List.filled(words.length, false);
+              _isLoading = false;
+              
+              if (words.isEmpty) {
+                _displayText = 'All words have been played!';
+              } else {
+                currentWord = getNextWord();
+                _displayText = 'Place on Forehead';
+                _startListeningToAccelerometer();
+              }
+            });
+            return;
+          }
+        }
+        
+        // No words found by any method
         setState(() {
-          words = filteredWords;
-          usedWords = List.filled(words.length, false);
           _isLoading = false;
-            currentWord = getNextWord();
-            _displayText = 'Place on Forehead';
-            _startListeningToAccelerometer();
+          words = [];
+          _displayText = 'No words available for this deck!';
         });
+        return;
       }
-    } catch (e) {
-      print('Error loading words: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _displayText = 'Error loading words';
-        });
-      }
+      
+      // Filter out words that have already been used
+      wordsList.removeWhere((word) => widget.usedWords.contains(word));
+      
+      setState(() {
+        words = wordsList;
+        usedWords = List.filled(words.length, false);
+        _isLoading = false;
+        
+        if (words.isEmpty) {
+          _displayText = 'All words have been played!';
+        } else {
+          currentWord = getNextWord();
+          _displayText = 'Place on Forehead';
+          _startListeningToAccelerometer();
+        }
+      });
+    }
+  } catch (e) {
+    print('Error loading words: $e');
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _displayText = 'Error loading words';
+      });
     }
   }
+}
 
   void startCountdown() {
     int count = 3;
@@ -383,7 +442,17 @@ class _GameScreenState extends State<GameScreen> {
                             ),
                           ),
                         const SizedBox(height: 40),
-                        if (_isPlacingOnForehead || _isCountingDown || isGameStarted)
+                        if (words.isEmpty)
+                          Text(
+                            'No words available for this deck!',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                          )
+                        else if (_isPlacingOnForehead || _isCountingDown || isGameStarted)
                           Text(
                             _displayText,
                             style: const TextStyle(

@@ -1,11 +1,20 @@
+// lib/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:heads_up/repositories/category_repository.dart';
+import 'dart:convert';
+import 'package:heads_up/admin_auth_screen.dart';
+import 'package:heads_up/utils/admin_mode_manager.dart';
 
 class SettingsScreen extends StatefulWidget {
   final List<String> usedWords;
   final VoidCallback resetUsedWords;
 
-  const SettingsScreen({Key? key, required this.usedWords, required this.resetUsedWords}) : super(key: key);
+  const SettingsScreen({
+    Key? key, 
+    required this.usedWords, 
+    required this.resetUsedWords
+  }) : super(key: key);
 
   @override
   _SettingsScreenState createState() => _SettingsScreenState();
@@ -14,11 +23,17 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundEnabled = true;
   int _gameDuration = 60;
+  bool _removeWordsEnabled = false;
+  bool _isAdminMode = false;
+  final CategoryRepository _categoryRepository = CategoryRepository();
+  final AdminModeManager _adminManager = AdminModeManager();
+  bool _isSyncing = false;
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _checkAdminMode();
   }
 
   _loadSettings() async {
@@ -27,10 +42,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _soundEnabled = prefs.getBool('soundEnabled') ?? true;
         _gameDuration = prefs.getInt('gameDuration') ?? 60;
+        _removeWordsEnabled = prefs.getBool('removeWordsEnabled') ?? false;
       });
     } catch (e) {
       print('Error loading settings: $e');
       // Use default values if loading fails
+    }
+  }
+
+  _checkAdminMode() async {
+    try {
+      final isAdmin = await _adminManager.isAdminModeEnabled();
+      setState(() {
+        _isAdminMode = isAdmin;
+      });
+    } catch (e) {
+      print('Error checking admin mode: $e');
     }
   }
 
@@ -39,11 +66,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('soundEnabled', _soundEnabled);
       await prefs.setInt('gameDuration', _gameDuration);
+      await prefs.setBool('removeWordsEnabled', _removeWordsEnabled);
     } catch (e) {
       print('Error saving settings: $e');
       // Show an error message to the user
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save settings. Please try again.')),
+      );
+    }
+  }
+
+  Future<void> _syncWithFirebase() async {
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      final result = await _categoryRepository.forceSync();
+      if (result) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Categories and words updated successfully!')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed. Check your internet connection.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error syncing data: $e')),
+      );
+    } finally {
+      setState(() {
+        _isSyncing = false;
+      });
+    }
+  }
+
+  void _toggleAdminMode() async {
+    if (_isAdminMode) {
+      // If already in admin mode, exit it
+      await _adminManager.disableAdminMode();
+      setState(() {
+        _isAdminMode = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Admin mode disabled'),
+          backgroundColor: Colors.blue,
+        ),
+      );
+    } else {
+      // If not in admin mode, show auth screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AdminAuthScreen(
+            onAuthSuccess: () {
+              Navigator.pop(context);
+              setState(() {
+                _isAdminMode = true;
+              });
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Admin mode enabled. All changes will sync directly to Firebase.'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            },
+          ),
+        ),
       );
     }
   }
@@ -100,6 +195,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
               },
               child: const Text('Reset'),
+            ),
+          ),
+          Divider(),
+          ListTile(
+            title: Text(
+              'Admin Features',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade700,
+              ),
+            ),
+          ),
+          ListTile(
+            title: Text(
+              'Admin Mode',
+              style: TextStyle(
+                fontWeight: _isAdminMode ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            subtitle: Text(
+              _isAdminMode 
+                ? 'Enabled - Make Changes that sync directly to Firebase' 
+                : 'Disabled - Login required'
+            ),
+            leading: Icon(
+              Icons.admin_panel_settings,
+              color: _isAdminMode ? Colors.green : Colors.grey,
+            ),
+            trailing: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _isAdminMode ? Colors.red : Colors.blue.shade700,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: _toggleAdminMode,
+              child: Text(_isAdminMode ? 'Disable' : 'Enable'),
+            ),
+          ),
+          if (_isAdminMode)
+          SwitchListTile(
+            title: const Text('Enable Word Removal'),
+            subtitle: const Text('Allow removing played words after each game'),
+            value: _removeWordsEnabled,
+            onChanged: (bool value) {
+              setState(() {
+                _removeWordsEnabled = value;
+                _saveSettings();
+              });
+            },
+          ),
+          ListTile(
+            title: const Text('Synchronize with Firebase'),
+            subtitle: const Text('Force refresh all categories and words from the server'),
+            trailing: ElevatedButton(
+              onPressed: _isSyncing ? null : _syncWithFirebase,
+              child: _isSyncing 
+                ? SizedBox(
+                    width: 20, 
+                    height: 20, 
+                    child: CircularProgressIndicator(strokeWidth: 2)
+                  )
+                : const Text('Sync Now'),
             ),
           ),
         ],

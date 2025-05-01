@@ -1,4 +1,5 @@
 // lib/services/firebase_service.dart
+// Complete implementation with all necessary methods
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:heads_up/models/category_model.dart';
 import 'package:heads_up/models/word_model.dart';
@@ -176,6 +177,22 @@ class FirebaseService {
         return (snapshot.data() as Map<String, dynamic>)['timestamp'] ?? 0;
       }
       
+      // If no version document exists, try to get the latest timestamp from categories
+      try {
+        final QuerySnapshot categoriesSnapshot = await _firestore
+            .collection('categories')
+            .orderBy('lastUpdated', descending: true)
+            .limit(1)
+            .get();
+            
+        if (categoriesSnapshot.docs.isNotEmpty) {
+          final latestCategory = categoriesSnapshot.docs.first.data() as Map<String, dynamic>;
+          return latestCategory['lastUpdated'] ?? 0;
+        }
+      } catch (innerError) {
+        print('Error getting latest category timestamp: $innerError');
+      }
+      
       return 0;
     } catch (e) {
       print('Error fetching version: $e');
@@ -183,69 +200,105 @@ class FirebaseService {
     }
   }
 
-  // SIMPLIFIED: Direct update methods for admin mode
-
-  // Save or update a category directly to Firebase
+  // IMPROVED: Save a category and its words to Firebase - fixes word saving issue
   Future<bool> saveCategoryToFirebase(CategoryModel category, List<WordModel> words) async {
     try {
       if (!await hasInternetConnection()) {
+        print('ERROR: No internet connection when trying to save to Firebase');
         return false;
       }
       
       // Only allow this operation in admin mode
       if (!await _adminManager.isAdminModeEnabled()) {
-        print('Not in admin mode, Firebase update rejected');
+        print('ERROR: Not in admin mode, Firebase update rejected');
         return false;
       }
       
-      // Update the category document
+      print('Starting Firebase save for category ${category.name} (${category.id}) with ${words.length} words');
+      
+      // First, make sure the category exists
       await _firestore.collection('categories').doc(category.id).set({
         'name': category.name,
         'icon': category.icon,
         'lastUpdated': DateTime.now().millisecondsSinceEpoch,
+        'custom': true, // Mark as a custom category
       });
       
-      // Get existing words to find ones to delete
-      QuerySnapshot existingWords = await _firestore
+      print('Category document created successfully');
+      
+      // Clear existing words for this category to avoid duplicates
+      // Get reference to words collection
+      CollectionReference wordsCollection = _firestore
           .collection('categories')
           .doc(category.id)
-          .collection('words')
-          .get();
+          .collection('words');
       
-      // Get word strings for faster comparison
-      Set<String> newWordStrings = words.map((w) => w.word).toSet();
-      
-      // Create a batch for better performance
-      WriteBatch batch = _firestore.batch();
-      
-      // Handle deletions - remove words that are no longer in the deck
-      for (var doc in existingWords.docs) {
-        String wordText = (doc.data() as Map<String, dynamic>)['word'] ?? '';
-        if (!newWordStrings.contains(wordText)) {
-          batch.delete(doc.reference);
-        }
-      }
-      
-      // Handle additions - add all new words
-      Set existingWordStrings = existingWords.docs.map((doc) => (doc.data() as Map<String, dynamic>)['word'] ?? '').toSet();
-      
-      for (var word in words) {
-        if (!existingWordStrings.contains(word.word)) {
-          DocumentReference wordRef = _firestore
-              .collection('categories')
-              .doc(category.id)
-              .collection('words')
-              .doc();
+      // First, clear out any existing words to avoid duplicates
+      try {
+        // Get all existing words
+        QuerySnapshot existingWords = await wordsCollection.get();
+        print('Found ${existingWords.docs.length} existing words to remove');
+        
+        // Delete in batches (Firestore limits batch size)
+        int batchSize = 0;
+        WriteBatch deleteBatch = _firestore.batch();
+        
+        for (var doc in existingWords.docs) {
+          deleteBatch.delete(doc.reference);
+          batchSize++;
           
-          batch.set(wordRef, {'word': word.word});
+          // Commit batch when it reaches limit
+          if (batchSize >= 500) {
+            await deleteBatch.commit();
+            print('Deleted batch of $batchSize existing words');
+            deleteBatch = _firestore.batch();
+            batchSize = 0;
+          }
+        }
+        
+        // Commit remaining deletes
+        if (batchSize > 0) {
+          await deleteBatch.commit();
+          print('Deleted final batch of $batchSize existing words');
+        }
+      } catch (e) {
+        print('Error clearing existing words: $e');
+        // Continue anyway - we'll overwrite words with the same ID
+      }
+      
+      // Add all new words in smaller batches
+      int totalAdded = 0;
+      
+      // Process in chunks of 100 to avoid Firestore limits
+      for (int i = 0; i < words.length; i += 100) {
+        int endIdx = (i + 100 < words.length) ? i + 100 : words.length;
+        List<WordModel> chunk = words.sublist(i, endIdx);
+        
+        try {
+          WriteBatch batch = _firestore.batch();
+          
+          for (var word in chunk) {
+            DocumentReference wordRef = wordsCollection.doc(word.id);
+            batch.set(wordRef, {'word': word.word});
+          }
+          
+          await batch.commit();
+          totalAdded += chunk.length;
+          print('Added batch of ${chunk.length} words (total: $totalAdded/${words.length})');
+        } catch (e) {
+          print('Error adding batch of words: $e');
+          // Continue with the next batch
         }
       }
       
-      // Commit all changes
-      await batch.commit();
+      print('Successfully saved $totalAdded/${words.length} words to Firebase');
       
-      print('Category and words updated in Firebase: ${category.name}');
-      return true;
+      // Update category timestamp to reflect the change
+      await _firestore.collection('categories').doc(category.id).update({
+        'lastUpdated': DateTime.now().millisecondsSinceEpoch,
+      });
+      
+      return totalAdded > 0 || words.isEmpty;
     } catch (e) {
       print('Error saving category to Firebase: $e');
       return false;

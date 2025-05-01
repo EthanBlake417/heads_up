@@ -1,4 +1,5 @@
 // lib/repositories/category_repository.dart
+// Updated to work with the new FirebaseService implementation
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:heads_up/models/category_model.dart';
@@ -7,7 +8,6 @@ import 'package:heads_up/services/firebase_service.dart';
 import 'package:heads_up/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:heads_up/utils/icon_mapping.dart';
 import 'package:heads_up/utils/admin_mode_manager.dart';
 
@@ -113,7 +113,6 @@ class CategoryRepository {
   // Load initial data if it's the first run and we can't connect to Firebase
   Future<void> loadInitialData() async {
     // Load default categories and words from embedded data
-    // You'll convert your existing Categories class to these model objects
     await _loadDefaultCategories();
   }
 

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:convert';
 import 'package:heads_up/utils/icon_mapping.dart'; // Import the icon mapping utility
+import 'package:heads_up/repositories/category_repository.dart';
 
 class AIDeckGenerator extends StatefulWidget {
   const AIDeckGenerator({Key? key}) : super(key: key);
@@ -612,6 +613,7 @@ class _AIDeckGeneratorState extends State<AIDeckGenerator> {
     }
   }
 
+// Modified _saveCategory method for AIDeckGenerator
 Future<void> _saveCategory() async {
   if (_selectedWords.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -630,7 +632,6 @@ Future<void> _saveCategory() async {
   try {
     final categoryId = _uuid.v4();
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final firestore = FirebaseFirestore.instance;
     
     // Map icon to its string representation using the utility
     String iconName = 'category'; // Default
@@ -644,10 +645,7 @@ Future<void> _saveCategory() async {
       }
     }
     
-    // Use a local database helper to save the deck locally first
-    final dbHelper = DatabaseHelper();
-    
-    // First save to local database to ensure words are accessible immediately
+    // Create the category model
     final category = CategoryModel(
       id: categoryId,
       name: _categoryName,
@@ -661,53 +659,16 @@ Future<void> _saveCategory() async {
       word: word,
     )).toList();
     
-    // Save locally first
-    await dbHelper.insertCategory(category);
-    await dbHelper.insertWords(wordModels);
+    // Use the CategoryRepository's saveCustomDeck method
+    // This will handle both local and Firebase storage
+    final dbHelper = DatabaseHelper();
+    final categoryRepository = CategoryRepository();
     
-    // Then use Future.microtask to not block the UI thread when saving to Firebase
-    Future.microtask(() async {
-      try {
-        // Create the category document
-        await firestore.collection('categories').doc(categoryId).set({
-          'name': _categoryName,
-          'icon': iconName,
-          'lastUpdated': timestamp,
-          'custom': true, // Mark as a custom category
-        });
-        
-        // Add words in smaller batches to avoid UI jank
-        final batch = firestore.batch();
-        int batchCount = 0;
-        
-        for (final word in _selectedWords) {
-          final wordRef = firestore
-            .collection('categories')
-            .doc(categoryId)
-            .collection('words')
-            .doc(_uuid.v4());
-            
-          batch.set(wordRef, {'word': word});
-          batchCount++;
-          
-          // Commit in smaller batches to reduce UI blocking
-          if (batchCount >= 100) {
-            await batch.commit();
-            batchCount = 0;
-          }
-        }
-        
-        // Commit any remaining operations
-        if (batchCount > 0) {
-          await batch.commit();
-        }
-        
-        print('Saved ${_selectedWords.length} words to Firebase successfully');
-      } catch (e) {
-        print('Background Firebase save error: $e');
-        // Don't show error since the local save was successful
-      }
-    });
+    // First save the category locally to ensure it exists
+    await dbHelper.insertCategory(category);
+    
+    // Now use the repository method that we know works
+    await categoryRepository.saveCustomDeck(category, wordModels);
     
     // Show success message
     ScaffoldMessenger.of(context).showSnackBar(
@@ -729,10 +690,10 @@ Future<void> _saveCategory() async {
     // Wait a very brief moment to ensure state changes are processed
     await Future.delayed(Duration(milliseconds: 50));
     
-    // Navigate back to previous screen
-    if (mounted) {
-      Navigator.pop(context, true); // Return success to trigger refresh
-    }
+    // // Navigate back to previous screen
+    // if (mounted) {
+    //   Navigator.pop(context, true); // Return success to trigger refresh
+    // }
     
   } catch (e) {
     print('Error saving category: $e');

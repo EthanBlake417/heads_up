@@ -1,4 +1,4 @@
-// Enhanced DeckEditorScreen with bulk word import and improved Firebase saving
+// Updated deck_editor_screen.dart with scrollable view to fix pixel overflow
 import 'package:flutter/material.dart';
 import 'package:heads_up/repositories/category_repository.dart';
 import 'package:heads_up/services/firebase_service.dart';
@@ -249,33 +249,40 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
       final success = await _firebaseService.saveCategoryToFirebase(category, wordModels);
       
       if (success) {
-        // Then save to local database for immediate use
-        print('Saving locally: ${category.name}');
+        // If Firebase succeeds, save locally
+        print('Firebase save successful, now saving locally...');
         await _categoryRepository.saveCustomDeck(category, wordModels);
         
-        // Only show success message and call callback if we're still mounted
         if (mounted) {
+          // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Deck saved successfully to Firebase!'),
+              content: Text('Deck saved successfully!'),
               backgroundColor: Colors.green,
             )
           );
+          
+          // Set state to not saving before callbacks
+          setState(() {
+            _isSaving = false;
+            _statusMessage = '';
+          });
           
           // Call the callback if provided
           if (widget.onSaveCallback != null) {
             widget.onSaveCallback!();
           }
           
-          // Wait a moment before navigating back to avoid black screen
-          await Future.delayed(Duration(milliseconds: 300));
-          
-          if (mounted) {
-            // Important: Use correct navigation approach
-            Navigator.of(context).pop(true); // Return success
-          }
+          // IMPORTANT: To prevent black screen, handle navigation correctly
+          // Use a post-frame callback to ensure the state update is processed
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context).pop(true);
+            }
+          });
         }
       } else {
+        // Only update state if still mounted
         if (mounted) {
           setState(() {
             _isSaving = false;
@@ -284,7 +291,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error saving deck to Firebase. Please try again.'),
+              content: Text('Error saving to Firebase. Please try again.'),
               backgroundColor: Colors.red,
             )
           );
@@ -293,6 +300,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
     } catch (e) {
       print('Error saving deck: $e');
       
+      // Only update state if still mounted
       if (mounted) {
         setState(() {
           _isSaving = false;
@@ -383,6 +391,13 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
   }
   
   @override
+  void dispose() {
+    _wordController.dispose();
+    _bulkWordController.dispose();
+    super.dispose();
+  }
+  
+  @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
@@ -437,308 +452,322 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
               ),
           ],
         ),
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.purple.shade200, Colors.blue.shade100],
+        // Wrap the entire body in a SingleChildScrollView to fix pixel overflow
+        body: SingleChildScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
+          child: Container(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height - 
+                        AppBar().preferredSize.height - 
+                        MediaQuery.of(context).padding.top,
             ),
-          ),
-          child: _isLoading
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text(_statusMessage),
-                    ],
-                  ),
-                )
-              : Stack(
-                  children: [
-                    Column(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.purple.shade200, Colors.blue.shade100],
+              ),
+            ),
+            child: _isLoading
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon selection
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
-                                children: [
-                                  // Use the utility to check for FontAwesome icons
-                                  IconMapping.isFontAwesomeIcon(_iconData)
-                                      ? FaIcon(_iconData, size: 48, color: Colors.blue.shade700)
-                                      : Icon(_iconData, size: 48, color: Colors.blue.shade700),
-                                  SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Deck Icon',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        Text(
-                                          'Choose an icon to represent this deck',
-                                          style: TextStyle(fontSize: 14),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: _showIconPicker,
-                                    child: Text('Change'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        // Word input
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _wordController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Add a word',
-                                    hintText: 'Enter a word to add to the deck',
-                                    border: OutlineInputBorder(),
-                                    prefixIcon: Icon(Icons.add_circle_outline),
-                                  ),
-                                  onSubmitted: (_) => _addWord(),
-                                  textInputAction: TextInputAction.done,
-                                ),
-                              ),
-                              SizedBox(width: 16),
-                              ElevatedButton(
-                                onPressed: _addWord,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue.shade700,
-                                  foregroundColor: Colors.white,
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                ),
-                                child: Text('Add'),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Bulk import option
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              TextButton.icon(
-                                icon: Icon(_showBulkImport ? Icons.expand_less : Icons.expand_more),
-                                label: Text(_showBulkImport ? 'Hide Bulk Import' : 'Show Bulk Import'),
-                                onPressed: () {
-                                  setState(() {
-                                    _showBulkImport = !_showBulkImport;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Bulk import area
-                        if (_showBulkImport)
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text(_statusMessage),
+                      ],
+                    ),
+                  )
+                : Stack(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Icon selection
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            padding: const EdgeInsets.all(16.0),
                             child: Card(
-                              elevation: 4,
                               child: Padding(
                                 padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Row(
                                   children: [
-                                    Text(
-                                      'Bulk Import Words',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue.shade800,
-                                      ),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Paste a list of words below (one per line or comma-separated):',
-                                      style: TextStyle(fontSize: 14),
-                                    ),
-                                    SizedBox(height: 8),
-                                    TextField(
-                                      controller: _bulkWordController,
-                                      decoration: InputDecoration(
-                                        hintText: 'Example:\nWord 1\nWord 2\nWord 3\n\nor: Word 1, Word 2, Word 3',
-                                        border: OutlineInputBorder(),
-                                        alignLabelWithHint: true,
-                                      ),
-                                      maxLines: 8,
-                                    ),
-                                    SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed: _processBulkWords,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.green.shade600,
-                                            foregroundColor: Colors.white,
+                                    // Use the utility to check for FontAwesome icons
+                                    IconMapping.isFontAwesomeIcon(_iconData)
+                                        ? FaIcon(_iconData, size: 48, color: Colors.blue.shade700)
+                                        : Icon(_iconData, size: 48, color: Colors.blue.shade700),
+                                    SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Deck Icon',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                          child: Text('Process Words'),
-                                        ),
-                                      ],
+                                          Text(
+                                            'Choose an icon to represent this deck',
+                                            style: TextStyle(fontSize: 14),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      onPressed: _showIconPicker,
+                                      child: Text('Change'),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
-                        // Firebase note
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue.shade200),
-                            ),
+                          // Word input
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
                             child: Row(
                               children: [
-                                Icon(Icons.cloud_upload, color: Colors.blue.shade700),
-                                SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
-                                    'Changes will be saved to Firebase when you press Save',
-                                    style: TextStyle(
-                                      color: Colors.blue.shade700,
-                                      fontWeight: FontWeight.w500,
+                                  child: TextField(
+                                    controller: _wordController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Add a word',
+                                      hintText: 'Enter a word to add to the deck',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.add_circle_outline),
                                     ),
+                                    onSubmitted: (_) => _addWord(),
+                                    textInputAction: TextInputAction.done,
                                   ),
+                                ),
+                                SizedBox(width: 16),
+                                ElevatedButton(
+                                  onPressed: _addWord,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.blue.shade700,
+                                    foregroundColor: Colors.white,
+                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                  ),
+                                  child: Text('Add'),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                        Divider(),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Words (${_words.length})',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              if (_words.isNotEmpty)
+                          // Bulk import option
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
                                 TextButton.icon(
-                                  icon: Icon(Icons.sort_by_alpha),
-                                  label: Text('Sort Alphabetically'),
+                                  icon: Icon(_showBulkImport ? Icons.expand_less : Icons.expand_more),
+                                  label: Text(_showBulkImport ? 'Hide Bulk Import' : 'Show Bulk Import'),
                                   onPressed: () {
                                     setState(() {
-                                      _words.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                                      _showBulkImport = !_showBulkImport;
                                     });
                                   },
                                 ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                        Expanded(
-                          child: _words.isEmpty
-                              ? Center(
+                          // Bulk import area
+                          if (_showBulkImport)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                              child: Card(
+                                elevation: 4,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
                                   child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Icon(Icons.info_outline, size: 48, color: Colors.grey),
-                                      SizedBox(height: 16),
                                       Text(
-                                        'No words added yet',
-                                        style: TextStyle(fontSize: 18, color: Colors.grey),
+                                        'Bulk Import Words',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue.shade800,
+                                        ),
                                       ),
                                       SizedBox(height: 8),
                                       Text(
-                                        'Add words using the field above or bulk import',
-                                        style: TextStyle(fontSize: 14, color: Colors.grey),
+                                        'Paste a list of words below (one per line or comma-separated):',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                      SizedBox(height: 8),
+                                      TextField(
+                                        controller: _bulkWordController,
+                                        decoration: InputDecoration(
+                                          hintText: 'Example:\nWord 1\nWord 2\nWord 3\n\nor: Word 1, Word 2, Word 3',
+                                          border: OutlineInputBorder(),
+                                          alignLabelWithHint: true,
+                                        ),
+                                        maxLines: 8,
+                                      ),
+                                      SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          ElevatedButton(
+                                            onPressed: _processBulkWords,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green.shade600,
+                                              foregroundColor: Colors.white,
+                                            ),
+                                            child: Text('Process Words'),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                )
-                              : ListView.builder(
-                                  itemCount: _words.length,
-                                  itemBuilder: (context, index) {
-                                    final word = _words[index];
-                                    return Dismissible(
-                                      key: Key('word-$word-$index'),
-                                      direction: DismissDirection.endToStart,
-                                      background: Container(
-                                        alignment: Alignment.centerRight,
-                                        padding: EdgeInsets.only(right: 20.0),
-                                        color: Colors.red,
-                                        child: Icon(
-                                          Icons.delete,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      onDismissed: (direction) {
-                                        _removeWord(word);
-                                      },
-                                      child: ListTile(
-                                        title: Text(
-                                          word,
-                                          style: TextStyle(fontSize: 16),
-                                        ),
-                                        trailing: IconButton(
-                                          icon: Icon(Icons.delete, color: Colors.red),
-                                          onPressed: () => _removeWord(word),
-                                        ),
-                                      ),
-                                    );
-                                  },
                                 ),
-                        ),
-                      ],
-                    ),
-                    // Status overlay
-                    if (_isSaving)
-                      Container(
-                        color: Colors.black.withOpacity(0.3),
-                        child: Center(
-                          child: Card(
-                            elevation: 8,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                          // Firebase note
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: Row(
                                 children: [
-                                  CircularProgressIndicator(),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    _statusMessage.isEmpty ? 'Saving to Firebase...' : _statusMessage,
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  Icon(Icons.cloud_upload, color: Colors.blue.shade700),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      'Changes will be saved to Firebase when you press Save',
+                                      style: TextStyle(
+                                        color: Colors.blue.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
+                          Divider(),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Words (${_words.length})',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                if (_words.isNotEmpty)
+                                  TextButton.icon(
+                                    icon: Icon(Icons.sort_by_alpha),
+                                    label: Text('Sort Alphabetically'),
+                                    onPressed: () {
+                                      setState(() {
+                                        _words.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+                                      });
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                          // Word list
+                          Container(
+                            constraints: BoxConstraints(minHeight: 200, maxHeight: MediaQuery.of(context).size.height * 0.6),
+                            // height: 300, // Fixed height for word list
+                            child: _words.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.info_outline, size: 48, color: Colors.grey),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'No words added yet',
+                                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                                        ),
+                                        SizedBox(height: 8),
+                                        Text(
+                                          'Add words using the field above or bulk import',
+                                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    itemCount: _words.length,
+                                    itemBuilder: (context, index) {
+                                      final word = _words[index];
+                                      return Dismissible(
+                                        key: Key('word-$word-$index'),
+                                        direction: DismissDirection.endToStart,
+                                        background: Container(
+                                          alignment: Alignment.centerRight,
+                                          padding: EdgeInsets.only(right: 20.0),
+                                          color: Colors.red,
+                                          child: Icon(
+                                            Icons.delete,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        onDismissed: (direction) {
+                                          _removeWord(word);
+                                        },
+                                        child: ListTile(
+                                          title: Text(
+                                            word,
+                                            style: TextStyle(fontSize: 16),
+                                          ),
+                                          trailing: IconButton(
+                                            icon: Icon(Icons.delete, color: Colors.red),
+                                            onPressed: () => _removeWord(word),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+                          SizedBox(height: 20), // Add some bottom padding
+                        ],
                       ),
-                  ],
-                ),
+                      // Status overlay
+                      if (_isSaving)
+                        Container(
+                          color: Colors.black.withOpacity(0.3),
+                          child: Center(
+                            child: Card(
+                              elevation: 8,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      _statusMessage.isEmpty ? 'Saving to Firebase...' : _statusMessage,
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );

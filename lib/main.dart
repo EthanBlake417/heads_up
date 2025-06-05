@@ -358,6 +358,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // Simplified deck card with only game launch functionality
+// Replace the SimpleDeckCard class in main.dart with this fixed version
 class SimpleDeckCard extends StatelessWidget {
   final String name;
   final IconData icon;
@@ -398,23 +399,31 @@ class SimpleDeckCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 48, color: isCustomDeck ? Colors.purple.shade700 : Colors.blue.shade700),
-              const SizedBox(height: 8),
-              Text(
-                name,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: isCustomDeck ? Colors.purple.shade700 : Colors.blue.shade700,
+              Icon(icon, size: 48, color: isCustomDeck ? Colors.purple.shade700 : Colors.blue.shade700), // Reduced from 48 to 40
+              const SizedBox(height: 6), // Reduced from 8 to 6
+              Flexible( // Wrap the text in Flexible
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 16, // Reduced from 18 to 16
+                    fontWeight: FontWeight.bold,
+                    color: isCustomDeck ? Colors.purple.shade700 : Colors.blue.shade700,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2, // Allow up to 2 lines
+                  overflow: TextOverflow.ellipsis, // Add ellipsis if text is too long
                 ),
-                textAlign: TextAlign.center,
               ),
               if (isCustomDeck)
-                Text(
-                  '(Custom)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.purple.shade500,
+                Flexible( // Wrap the custom text in Flexible too
+                  child: Text(
+                    '(Custom)',
+                    style: TextStyle(
+                      fontSize: 10, // Reduced from 12 to 10
+                      color: Colors.purple.shade500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
             ],

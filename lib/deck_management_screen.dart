@@ -121,7 +121,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Firebase Deck Management'),
+        title: Text('Deck Management'),
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         actions: [
@@ -129,7 +129,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: _isProcessing ? null : _loadFirebaseCategories,
-            tooltip: 'Refresh deck list from Firebase',
+            tooltip: 'Refresh deck list from Database',
           ),
         ],
       ),
@@ -161,7 +161,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                           ),
                           icon: Icon(Icons.add_circle),
                           label: Text(
-                            'Create New Firebase Deck',
+                            'Create New Deck',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           onPressed: _isProcessing ? null : () {
@@ -177,7 +177,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                             Icon(Icons.cloud, color: Colors.blue.shade700),
                             SizedBox(width: 8),
                             Text(
-                              'Firebase Decks',
+                              'Decks',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -230,7 +230,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                                           context: context,
                                           builder: (context) => AlertDialog(
                                             title: Text('Delete Deck from Firebase'),
-                                            content: Text('Are you sure you want to delete the deck "${deck.name}" from Firebase? This will remove it for all users and cannot be undone.'),
+                                            content: Text('Are you sure you want to delete the deck "${deck.name}" from the Database? This will remove it for all users and cannot be undone.'),
                                             actions: [
                                               TextButton(
                                                 onPressed: () => Navigator.pop(context, false),

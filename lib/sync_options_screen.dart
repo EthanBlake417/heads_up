@@ -1,6 +1,6 @@
 // sync_options_screen.dart
 import 'package:flutter/material.dart';
-import 'package:heads_up/repositories/category_repository.dart';
+import 'package:guess_it/repositories/category_repository.dart';
 
 class SyncOptionsScreen extends StatefulWidget {
   @override

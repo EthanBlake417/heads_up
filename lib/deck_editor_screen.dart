@@ -1,10 +1,10 @@
 // Updated deck_editor_screen.dart with scrollable view to fix pixel overflow
 import 'package:flutter/material.dart';
-import 'package:heads_up/repositories/category_repository.dart';
-import 'package:heads_up/services/firebase_service.dart';
-import 'package:heads_up/models/category_model.dart';
-import 'package:heads_up/models/word_model.dart';
-import 'package:heads_up/utils/icon_mapping.dart';
+import 'package:guess_it/repositories/category_repository.dart';
+import 'package:guess_it/services/firebase_service.dart';
+import 'package:guess_it/models/category_model.dart';
+import 'package:guess_it/models/word_model.dart';
+import 'package:guess_it/utils/icon_mapping.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:uuid/uuid.dart';
 

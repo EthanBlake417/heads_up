@@ -1,6 +1,6 @@
 {
-    "name": "heads_up",
-    "short_name": "heads_up",
+    "name": "guess_it",
+    "short_name": "guess_it",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#hexcode",

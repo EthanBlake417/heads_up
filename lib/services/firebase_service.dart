@@ -1,10 +1,10 @@
 // lib/services/firebase_service.dart
 // Complete implementation with all necessary methods
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:heads_up/models/category_model.dart';
-import 'package:heads_up/models/word_model.dart';
+import 'package:guess_it/models/category_model.dart';
+import 'package:guess_it/models/word_model.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:heads_up/utils/admin_mode_manager.dart';
+import 'package:guess_it/utils/admin_mode_manager.dart';
 
 class FirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;

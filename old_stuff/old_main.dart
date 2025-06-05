@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:heads_up/game_screen.dart';
-import 'package:heads_up/settings_screen.dart';
+import 'package:guess_it/game_screen.dart';
+import 'package:guess_it/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -27,12 +27,12 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Heads Up',
+      title: 'Guess It',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: HomePage(title: 'Heads Up', usedWords: usedWords, resetUsedWords: resetUsedWords),
+      home: HomePage(title: 'Guess It', usedWords: usedWords, resetUsedWords: resetUsedWords),
     );
   }
 }

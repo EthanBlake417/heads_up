@@ -4,10 +4,10 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_sensors/flutter_sensors.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:heads_up/database_helper.dart';
+import 'package:guess_it/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:heads_up/repositories/category_repository.dart';
-import 'package:heads_up/results_screen.dart';
+import 'package:guess_it/repositories/category_repository.dart';
+import 'package:guess_it/results_screen.dart';
 import 'package:vibration/vibration.dart';
 
 class GameScreen extends StatefulWidget {

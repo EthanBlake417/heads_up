@@ -1,9 +1,9 @@
 // lib/online_decks_screen.dart
 import 'package:flutter/material.dart';
-import 'package:heads_up/database_helper.dart';
-import 'package:heads_up/repositories/category_repository.dart';
-import 'package:heads_up/services/firebase_service.dart';
-import 'package:heads_up/utils/icon_mapping.dart';
+import 'package:guess_it/database_helper.dart';
+import 'package:guess_it/repositories/category_repository.dart';
+import 'package:guess_it/services/firebase_service.dart';
+import 'package:guess_it/utils/icon_mapping.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class OnlineDecksScreen extends StatefulWidget {

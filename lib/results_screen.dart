@@ -1,5 +1,5 @@
 // import 'package:flutter/material.dart';
-// import 'package:heads_up/game_screen.dart';
+// import 'package:guess_it/game_screen.dart';
 
 // class ResultsScreen extends StatelessWidget {
 //   final int score;
@@ -174,8 +174,8 @@
 // }
 
 import 'package:flutter/material.dart';
-import 'package:heads_up/game_screen.dart';
-import 'package:heads_up/word_removal_screen.dart';
+import 'package:guess_it/game_screen.dart';
+import 'package:guess_it/word_removal_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ResultsScreen extends StatefulWidget {

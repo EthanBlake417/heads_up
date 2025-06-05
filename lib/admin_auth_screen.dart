@@ -1,6 +1,6 @@
 // lib/admin_auth_screen.dart
 import 'package:flutter/material.dart';
-import 'package:heads_up/utils/admin_mode_manager.dart';
+import 'package:guess_it/utils/admin_mode_manager.dart';
 
 class AdminAuthScreen extends StatefulWidget {
   final VoidCallback onAuthSuccess;

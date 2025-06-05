@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
-import 'package:heads_up/categories.dart'; // Import your static Categories class
+import 'package:guess_it/categories.dart'; // Import your static Categories class
 
 /// This utility class helps migrate the static categories data to Firestore
 /// You would run this once in development to populate your Firebase database

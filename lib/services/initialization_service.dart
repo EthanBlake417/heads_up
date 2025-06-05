@@ -1,4 +1,4 @@
-import 'package:heads_up/repositories/category_repository.dart';
+import 'package:guess_it/repositories/category_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class InitializationService {

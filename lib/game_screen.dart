@@ -4,10 +4,18 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter_sensors/flutter_sensors.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:heads_up/repositories/category_repository.dart';
+import 'package:guess_it/repositories/category_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
 import 'results_screen.dart';
+
+// Define the device position states
+enum DevicePositionState {
+  NEUTRAL,
+  CORRECT_POSITION,
+  PASS_POSITION,
+  ACTION_TRIGGERED
+}
 
 class GameScreen extends StatefulWidget {
   final String deckName;
@@ -34,7 +42,22 @@ class _GameScreenState extends State<GameScreen> {
 
   List<Color> _backgroundColors = [Colors.blue.shade700, Colors.blue.shade300];
   String _displayText = '';
-  bool _isTriggered = false;
+  
+  // Device position state tracking
+  DevicePositionState _deviceState = DevicePositionState.NEUTRAL;
+  DateTime? _stateEnteredTime;
+  
+  // Thresholds with hysteresis
+  final double _correctTriggerThreshold = -9.0;     // Tilt down (negative Z)
+  final double _correctResetThreshold = -5.0;      // Less strict for resetting
+  final double _passTriggerThreshold = 9.0;        // Tilt up (positive Z)
+  final double _passResetThreshold = 5.0;          // Less strict for resetting
+  final double _neutralThreshold = 4.0;            // Consider neutral when abs(z) < this value
+  
+  // Timing controls
+  final Duration _positionConfirmTime = Duration(milliseconds: 150);  // Time required in position to trigger
+  final Duration _wordChangeDelay = Duration(milliseconds: 250);      // Lock period after word change
+  DateTime? _lastWordChangeTime;
 
   List<String> correctWords = [];
   List<String> passedWords = [];
@@ -48,9 +71,6 @@ class _GameScreenState extends State<GameScreen> {
 
   bool _soundEnabled = true;
   int _gameDuration = 60;
-
-  bool _isActionCooldown = false;
-  final _cooldownDuration = const Duration(milliseconds: 350); // cooldown
 
   @override
   void initState() {
@@ -78,7 +98,6 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  // Updated method to get words from CategoryRepository
   Future<void> _loadWords() async {
     try {
       setState(() {
@@ -99,9 +118,9 @@ class _GameScreenState extends State<GameScreen> {
           words = filteredWords;
           usedWords = List.filled(words.length, false);
           _isLoading = false;
-            currentWord = getNextWord();
-            _displayText = 'Place on Forehead';
-            _startListeningToAccelerometer();
+          currentWord = getNextWord();
+          _displayText = 'Place on Forehead';
+          _startListeningToAccelerometer();
         });
       }
     } catch (e) {
@@ -117,6 +136,10 @@ class _GameScreenState extends State<GameScreen> {
 
   void startCountdown() {
     int count = 3;
+    setState(() {
+      _isCountingDown = true;
+    });
+    
     Timer.periodic(const Duration(seconds: 1), (timer) {
       _processCountdown(count, timer);
       count--;
@@ -149,6 +172,8 @@ class _GameScreenState extends State<GameScreen> {
         isGameStarted = true;
         _isCountingDown = false;
         _displayText = currentWord;
+        _deviceState = DevicePositionState.NEUTRAL;
+        _lastWordChangeTime = DateTime.now();
       });
       startTimer();
     }
@@ -189,7 +214,7 @@ class _GameScreenState extends State<GameScreen> {
         if (remainingTime > 0) {
           remainingTime--;
           if (remainingTime <= 10) {
-            Vibration.vibrate(duration: (15 + (10 - remainingTime) * 10));
+            // Vibration.vibrate(duration: (15 + (10 - remainingTime) * 10));
           }
         } else {
           endGame();
@@ -203,9 +228,13 @@ class _GameScreenState extends State<GameScreen> {
       sensorId: Sensors.ACCELEROMETER,
       interval: Sensors.SENSOR_DELAY_GAME,
     );
+    
     _accelerometerSubscription = stream.listen((SensorEvent event) {
+      final double zAccel = event.data[2]; // Z-axis acceleration
+      
       if (_isPlacingOnForehead) {
-        if (event.data[2].abs() < 3) {
+        // Logic for detecting when phone is placed on forehead
+        if (zAccel.abs() < 3) {
           // Phone is roughly horizontal
           setState(() {
             _isPlacingOnForehead = false;
@@ -214,42 +243,89 @@ class _GameScreenState extends State<GameScreen> {
               Colors.purple.shade300
             ];
           });
-          Future.delayed(Duration(milliseconds: 0), () {
-            setState(() {
-              _isCountingDown = true;
-            });
+          
+          Future.delayed(Duration.zero, () {
             startCountdown();
           });
         }
-      } else if (isGameStarted && !_isActionCooldown) {
-        if (event.data[2].abs() > 9 && !_isTriggered) {
-          if (event.data[2] > 0) {
-            onPass();
-          } else {
-            onCorrect();
-          }
-          _isTriggered = true;
-          _startActionCooldown();
-        } else if (event.data[2].abs() < 5 && _isTriggered) {
-          _resetToNeutral();
-        }
+        return; // Exit early if we're still in placement phase
+      } 
+      
+      if (_isCountingDown || !isGameStarted) {
+        return; // Exit if countdown is active or game hasn't started
       }
+      
+      // Check if we're in the lock period after word change
+      if (_lastWordChangeTime != null && 
+          DateTime.now().difference(_lastWordChangeTime!) < _wordChangeDelay) {
+        return;
+      }
+      
+      // Main game accelerometer logic with improved state management
+      _processAccelerometerReading(zAccel);
     });
   }
 
-  void _startActionCooldown() {
-    setState(() {
-      _isActionCooldown = true;
-    });
-    Future.delayed(_cooldownDuration, () {
+  void _processAccelerometerReading(double zAccel) {
+    // Determine the new state based on accelerometer readings and current state
+    DevicePositionState newState = _deviceState;
+    
+    switch (_deviceState) {
+      case DevicePositionState.NEUTRAL:
+        // From neutral, can go to either CORRECT or PASS position
+        if (zAccel <= _correctTriggerThreshold) {
+          newState = DevicePositionState.CORRECT_POSITION;
+          _stateEnteredTime = DateTime.now();
+        } else if (zAccel >= _passTriggerThreshold) {
+          newState = DevicePositionState.PASS_POSITION;
+          _stateEnteredTime = DateTime.now();
+        }
+        break;
+        
+      case DevicePositionState.CORRECT_POSITION:
+        // Check if we should trigger the action (maintained position for required time)
+        if (zAccel > _correctResetThreshold) {
+          // No longer in correct position, reset to neutral without action
+          newState = DevicePositionState.NEUTRAL;
+        } else if (_stateEnteredTime != null && 
+                  DateTime.now().difference(_stateEnteredTime!) >= _positionConfirmTime) {
+          // Position held long enough, trigger the action
+          onCorrect();
+          newState = DevicePositionState.ACTION_TRIGGERED;
+        }
+        break;
+        
+      case DevicePositionState.PASS_POSITION:
+        // Check if we should trigger the action (maintained position for required time)
+        if (zAccel < _passResetThreshold) {
+          // No longer in pass position, reset to neutral without action
+          newState = DevicePositionState.NEUTRAL;
+        } else if (_stateEnteredTime != null && 
+                  DateTime.now().difference(_stateEnteredTime!) >= _positionConfirmTime) {
+          // Position held long enough, trigger the action
+          onPass();
+          newState = DevicePositionState.ACTION_TRIGGERED;
+        }
+        break;
+        
+      case DevicePositionState.ACTION_TRIGGERED:
+        // After action is triggered, wait for return to neutral position
+        if (zAccel.abs() < _neutralThreshold) {
+          moveToNextWord();
+          newState = DevicePositionState.NEUTRAL;
+        }
+        break;
+    }
+    
+    // Only update the state if it changed
+    if (newState != _deviceState) {
       setState(() {
-        _isActionCooldown = false;
+        _deviceState = newState;
       });
-    });
+    }
   }
 
   void onCorrect() {
-    if (_isActionCooldown) return;
     Vibration.vibrate(duration: 350);
     _playSound('correct.mp3');
     setState(() {
@@ -258,12 +334,10 @@ class _GameScreenState extends State<GameScreen> {
       _backgroundColors = [Colors.green.shade700, Colors.green.shade300];
       _displayText = 'CORRECT!';
     });
-    _startActionCooldown();
   }
 
   void onPass() {
-    if (_isActionCooldown) return;
-    Vibration.vibrate(duration: 175);
+    Vibration.vibrate(duration: 350);
     if (mounted) {
       setState(() {
         passedWords.add(currentWord);
@@ -271,16 +345,14 @@ class _GameScreenState extends State<GameScreen> {
         _displayText = 'PASS';
       });
     }
-    _startActionCooldown();
   }
 
-  void _resetToNeutral() {
-    if (_isActionCooldown) return;
+  void moveToNextWord() {
     setState(() {
-      _isTriggered = false;
       _backgroundColors = [Colors.blue.shade700, Colors.blue.shade300];
       currentWord = getNextWord();
       _displayText = currentWord;
+      _lastWordChangeTime = DateTime.now();
     });
   }
 
@@ -291,7 +363,7 @@ class _GameScreenState extends State<GameScreen> {
       _displayText = "Time's Up!";
       _backgroundColors = [Colors.red.shade700, Colors.red.shade300];
     });
-    Vibration.vibrate(duration: 1000);
+    Vibration.vibrate(duration: 1500);
 
     widget.usedWords.addAll(correctWords);
     widget.usedWords.addAll(passedWords);

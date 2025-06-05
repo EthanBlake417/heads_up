@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:heads_up/database_helper.dart';
-import 'package:heads_up/models/category_model.dart';
-import 'package:heads_up/models/word_model.dart';
+import 'package:guess_it/database_helper.dart';
+import 'package:guess_it/models/category_model.dart';
+import 'package:guess_it/models/word_model.dart';
 import 'package:uuid/uuid.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:convert';
-import 'package:heads_up/utils/icon_mapping.dart'; // Import the icon mapping utility
-import 'package:heads_up/repositories/category_repository.dart';
+import 'package:guess_it/utils/icon_mapping.dart'; // Import the icon mapping utility
+import 'package:guess_it/repositories/category_repository.dart';
 
 class AIDeckGenerator extends StatefulWidget {
   const AIDeckGenerator({Key? key}) : super(key: key);

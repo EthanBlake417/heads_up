@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:heads_up/game_screen.dart';
-import 'package:heads_up/settings_screen.dart';
-import 'package:heads_up/repositories/category_repository.dart';
-import 'package:heads_up/services/initialization_service.dart';
-import 'package:heads_up/deck_editor_screen.dart';
-import 'package:heads_up/deck_management_screen.dart';
+import 'package:guess_it/game_screen.dart';
+import 'package:guess_it/settings_screen.dart';
+import 'package:guess_it/repositories/category_repository.dart';
+import 'package:guess_it/services/initialization_service.dart';
+import 'package:guess_it/deck_management_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'package:heads_up/online_decks_screen.dart';
-import 'package:heads_up/ai_deck_generator.dart';
-import 'package:heads_up/utils/admin_mode_manager.dart';
-import 'package:heads_up/admin_auth_screen.dart';
+import 'package:guess_it/online_decks_screen.dart';
+import 'package:guess_it/ai_deck_generator.dart';
+import 'package:guess_it/utils/admin_mode_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,7 +46,7 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Heads Up',
+      title: 'Guess It',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
@@ -153,7 +151,7 @@ class _MainTabScreenState extends State<MainTabScreen> {
           // Home/Categories page with key for refreshing
           HomePage(
             key: _homePageKey,
-            title: 'Heads Up', 
+            title: 'Guess It', 
             usedWords: widget.usedWords, 
             resetUsedWords: widget.resetUsedWords
           ),

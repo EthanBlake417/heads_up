@@ -2,14 +2,14 @@
 // Updated to work with the new FirebaseService implementation
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:heads_up/models/category_model.dart';
-import 'package:heads_up/models/word_model.dart';
-import 'package:heads_up/services/firebase_service.dart';
-import 'package:heads_up/database_helper.dart';
+import 'package:guess_it/models/category_model.dart';
+import 'package:guess_it/models/word_model.dart';
+import 'package:guess_it/services/firebase_service.dart';
+import 'package:guess_it/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import 'package:heads_up/utils/icon_mapping.dart';
-import 'package:heads_up/utils/admin_mode_manager.dart';
+import 'package:guess_it/utils/icon_mapping.dart';
+import 'package:guess_it/utils/admin_mode_manager.dart';
 
 class CategoryRepository {
   final FirebaseService _firebaseService = FirebaseService();

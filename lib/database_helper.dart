@@ -1,7 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'package:heads_up/models/category_model.dart';
-import 'package:heads_up/models/word_model.dart';
+import 'package:guess_it/models/category_model.dart';
+import 'package:guess_it/models/word_model.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -17,7 +17,7 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    String path = join(await getDatabasesPath(), 'heads_up.db');
+    String path = join(await getDatabasesPath(), 'guess_it.db');
     return await openDatabase(
       path,
       version: 1,

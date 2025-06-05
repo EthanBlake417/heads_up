@@ -1,4 +1,4 @@
-package com.example.heads_up
+package com.example.guess_it
 
 import io.flutter.embedding.android.FlutterActivity
 

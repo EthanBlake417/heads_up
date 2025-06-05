@@ -2,7 +2,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AdminModeManager {
-  static const String _adminPasswordKey = 'admin_password';
   static const String _adminModeKey = 'admin_mode_enabled';
   static const String _correctPassword = 'ethanb';
   

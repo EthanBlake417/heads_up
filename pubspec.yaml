@@ -46,7 +46,7 @@ dependencies:
   path: ^1.8.3
   connectivity_plus: ^4.0.2
   uuid: ^3.0.7
-
+  auto_size_text: ^3.0.0
 
 
 dev_dependencies:

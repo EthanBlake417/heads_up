@@ -27,7 +27,6 @@ class IconMapping {
     'Nature': Icons.nature,
     'Fashion': Icons.shopping_bag,
     'Disney': FontAwesomeIcons.crown,
-    'Sports': Icons.sports_gymnastics,
     'Board Games': Icons.casino,
     'Fantasy': FontAwesomeIcons.dragon,
     'Religion': Icons.church,

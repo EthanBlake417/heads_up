@@ -1,3 +1,4 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
@@ -443,30 +444,37 @@ class _GameScreenState extends State<GameScreen> {
                       ],
                     )
                   : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (isGameStarted)
-                          Text(
-                            'Time: $remainingTime',
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isGameStarted)
+                        Text(
+                          'Time: $remainingTime',
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      const SizedBox(height: 40),
+                      if (_isPlacingOnForehead || _isCountingDown || isGameStarted)
+                        Flexible(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20.0),
+                            child: AutoSizeText(
+                              _displayText,
+                              style: const TextStyle(
+                                fontSize: 100,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              minFontSize: 20,
                             ),
                           ),
-                        const SizedBox(height: 40),
-                        if (_isPlacingOnForehead || _isCountingDown || isGameStarted)
-                          Text(
-                            _displayText,
-                            style: const TextStyle(
-                              fontSize: 100,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                      ],
-                    ),
+                        ),
+                    ],
+                  ),
             ),
           ),
         ),

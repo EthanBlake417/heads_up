@@ -46,7 +46,6 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading Firebase categories: $e');
       setState(() {
         _isLoading = false;
         _firebaseDecks = [];
@@ -102,7 +101,6 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
         );
       }
     } catch (e) {
-      print('Error during $actionName: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('$errorMessage: ${e.toString()}'),

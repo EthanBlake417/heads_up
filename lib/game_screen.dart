@@ -9,8 +9,8 @@ import 'package:guess_it/repositories/category_repository.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vibration/vibration.dart';
 import 'results_screen.dart';
+import 'package:guess_it/utils/game_constants.dart';
 
-// Define the device position states
 enum DevicePositionState {
   NEUTRAL,
   CORRECT_POSITION,
@@ -35,7 +35,7 @@ class _GameScreenState extends State<GameScreen> {
   late String currentWord;
   int score = 0;
   late Timer timer;
-  int remainingTime = 60; // Default game time
+  int remainingTime = GameConstants.defaultGameDuration;
   bool isGameStarted = false;
   bool _isLoading = true;
 
@@ -48,16 +48,6 @@ class _GameScreenState extends State<GameScreen> {
   DevicePositionState _deviceState = DevicePositionState.NEUTRAL;
   DateTime? _stateEnteredTime;
   
-  // Thresholds with hysteresis
-  final double _correctTriggerThreshold = -9.0;     // Tilt down (negative Z)
-  final double _correctResetThreshold = -5.0;      // Less strict for resetting
-  final double _passTriggerThreshold = 9.0;        // Tilt up (positive Z)
-  final double _passResetThreshold = 5.0;          // Less strict for resetting
-  final double _neutralThreshold = 4.0;            // Consider neutral when abs(z) < this value
-  
-  // Timing controls
-  final Duration _positionConfirmTime = Duration(milliseconds: 150);  // Time required in position to trigger
-  final Duration _wordChangeDelay = Duration(milliseconds: 250);      // Lock period after word change
   DateTime? _lastWordChangeTime;
 
   List<String> correctWords = [];
@@ -71,7 +61,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _isCountingDown = false;
 
   bool _soundEnabled = true;
-  int _gameDuration = 60;
+  int _gameDuration = GameConstants.defaultGameDuration;
 
   @override
   void initState() {
@@ -90,11 +80,10 @@ class _GameScreenState extends State<GameScreen> {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
         _soundEnabled = prefs.getBool('soundEnabled') ?? true;
-        _gameDuration = prefs.getInt('gameDuration') ?? 60;
+        _gameDuration = prefs.getInt('gameDuration') ?? GameConstants.defaultGameDuration;
         remainingTime = _gameDuration;
       });
     } catch (e) {
-      print('Error loading settings: $e');
       // Use default values if loading fails
     }
   }
@@ -106,14 +95,11 @@ class _GameScreenState extends State<GameScreen> {
         _displayText = 'Loading...';
       });
       
-      print('Loading words for deck: ${widget.deckName}');
       final wordsList = await _categoryRepository.getWordsForCategory(widget.deckName);
-      print('Word list loaded, found ${wordsList.length} words');
       
       if (mounted) {
         // Filter out words that have already been used
         final filteredWords = wordsList.where((word) => !widget.usedWords.contains(word)).toList();
-        print('After filtering used words: ${filteredWords.length} words remaining');
         
         setState(() {
           words = filteredWords;
@@ -125,7 +111,6 @@ class _GameScreenState extends State<GameScreen> {
         });
       }
     } catch (e) {
-      print('Error loading words: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -214,9 +199,6 @@ class _GameScreenState extends State<GameScreen> {
       setState(() {
         if (remainingTime > 0) {
           remainingTime--;
-          if (remainingTime <= 10) {
-            // Vibration.vibrate(duration: (15 + (10 - remainingTime) * 10));
-          }
         } else {
           endGame();
         }
@@ -258,7 +240,7 @@ class _GameScreenState extends State<GameScreen> {
       
       // Check if we're in the lock period after word change
       if (_lastWordChangeTime != null && 
-          DateTime.now().difference(_lastWordChangeTime!) < _wordChangeDelay) {
+          DateTime.now().difference(_lastWordChangeTime!) < GameConstants.wordChangeDelay) {
         return;
       }
       
@@ -274,10 +256,10 @@ class _GameScreenState extends State<GameScreen> {
     switch (_deviceState) {
       case DevicePositionState.NEUTRAL:
         // From neutral, can go to either CORRECT or PASS position
-        if (zAccel <= _correctTriggerThreshold) {
+        if (zAccel <= GameConstants.correctTriggerThreshold) {
           newState = DevicePositionState.CORRECT_POSITION;
           _stateEnteredTime = DateTime.now();
-        } else if (zAccel >= _passTriggerThreshold) {
+        } else if (zAccel >= GameConstants.passTriggerThreshold) {
           newState = DevicePositionState.PASS_POSITION;
           _stateEnteredTime = DateTime.now();
         }
@@ -285,11 +267,11 @@ class _GameScreenState extends State<GameScreen> {
         
       case DevicePositionState.CORRECT_POSITION:
         // Check if we should trigger the action (maintained position for required time)
-        if (zAccel > _correctResetThreshold) {
+        if (zAccel > GameConstants.correctResetThreshold) {
           // No longer in correct position, reset to neutral without action
           newState = DevicePositionState.NEUTRAL;
         } else if (_stateEnteredTime != null && 
-                  DateTime.now().difference(_stateEnteredTime!) >= _positionConfirmTime) {
+                  DateTime.now().difference(_stateEnteredTime!) >= GameConstants.positionConfirmTime) {
           // Position held long enough, trigger the action
           onCorrect();
           newState = DevicePositionState.ACTION_TRIGGERED;
@@ -298,11 +280,11 @@ class _GameScreenState extends State<GameScreen> {
         
       case DevicePositionState.PASS_POSITION:
         // Check if we should trigger the action (maintained position for required time)
-        if (zAccel < _passResetThreshold) {
+        if (zAccel < GameConstants.passResetThreshold) {
           // No longer in pass position, reset to neutral without action
           newState = DevicePositionState.NEUTRAL;
         } else if (_stateEnteredTime != null && 
-                  DateTime.now().difference(_stateEnteredTime!) >= _positionConfirmTime) {
+                  DateTime.now().difference(_stateEnteredTime!) >= GameConstants.positionConfirmTime) {
           // Position held long enough, trigger the action
           onPass();
           newState = DevicePositionState.ACTION_TRIGGERED;
@@ -311,7 +293,7 @@ class _GameScreenState extends State<GameScreen> {
         
       case DevicePositionState.ACTION_TRIGGERED:
         // After action is triggered, wait for return to neutral position
-        if (zAccel.abs() < _neutralThreshold) {
+        if (zAccel.abs() < GameConstants.neutralThreshold) {
           moveToNextWord();
           newState = DevicePositionState.NEUTRAL;
         }
@@ -390,7 +372,6 @@ class _GameScreenState extends State<GameScreen> {
       try {
         await _audioPlayer.play(AssetSource(soundFile));
       } catch (e) {
-        print('Error playing sound: $e');
       }
     }
   }

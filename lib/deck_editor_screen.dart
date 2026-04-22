@@ -1,4 +1,3 @@
-// Updated deck_editor_screen.dart with scrollable view to fix pixel overflow
 import 'package:flutter/material.dart';
 import 'package:guess_it/repositories/category_repository.dart';
 import 'package:guess_it/services/firebase_service.dart';
@@ -83,7 +82,6 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
           });
         }
       } catch (e) {
-        print('Error loading words from Firebase: $e');
         
         if (mounted) {
           setState(() {
@@ -245,12 +243,10 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
       )).toList();
       
       // First try to save to Firebase
-      print('Saving to Firebase: ${category.name} with ${wordModels.length} words');
       final success = await _firebaseService.saveCategoryToFirebase(category, wordModels);
       
       if (success) {
         // If Firebase succeeds, save locally
-        print('Firebase save successful, now saving locally...');
         await _categoryRepository.saveCustomDeck(category, wordModels);
         
         if (mounted) {
@@ -298,7 +294,6 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
         }
       }
     } catch (e) {
-      print('Error saving deck: $e');
       
       // Only update state if still mounted
       if (mounted) {
@@ -682,7 +677,6 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
                           // Word list
                           Container(
                             constraints: BoxConstraints(minHeight: 200, maxHeight: MediaQuery.of(context).size.height * 0.6),
-                            // height: 300, // Fixed height for word list
                             child: _words.isEmpty
                                 ? Center(
                                     child: Column(

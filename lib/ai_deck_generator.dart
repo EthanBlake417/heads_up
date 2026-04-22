@@ -596,7 +596,6 @@ class _AIDeckGeneratorState extends State<AIDeckGenerator> {
       }
       
     } catch (e) {
-      print('Error processing word list: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error processing the word list. Please try a different format.'),
@@ -684,16 +683,9 @@ Future<void> _saveCategory() async {
       _wordListController.clear();
     });
     
-    // Wait a very brief moment to ensure state changes are processed
     await Future.delayed(Duration(milliseconds: 50));
-    
-    // // Navigate back to previous screen
-    // if (mounted) {
-    //   Navigator.pop(context, true); // Return success to trigger refresh
-    // }
-    
+
   } catch (e) {
-    print('Error saving category: $e');
     
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

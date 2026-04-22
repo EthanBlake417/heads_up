@@ -1,5 +1,3 @@
-// lib/repositories/category_repository.dart
-// Updated to work with the new FirebaseService implementation
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:guess_it/models/category_model.dart';
@@ -62,7 +60,6 @@ class CategoryRepository {
       
       return remoteVersion > localVersion;
     } catch (e) {
-      print('Error checking sync status: $e');
       return false;
     }
   }
@@ -99,7 +96,6 @@ class CategoryRepository {
       await _updateLastSyncTimestamp();
       return true;
     } catch (e) {
-      print('Error syncing data: $e');
       return false;
     }
   }
@@ -177,21 +173,17 @@ class CategoryRepository {
         return await _databaseHelper.getAllWords();
       }
       
-      print('Repository: Getting words for category: $categoryName');
       
       // First try to get the category
       final category = await _databaseHelper.getCategoryByName(categoryName);
       
       if (category == null) {
-        print('Repository: Category not found: $categoryName');
         return [];
       }
       
-      print('Repository: Found category with ID: ${category.id}');
       
       // Try getting words by name first
       final wordsByName = await _databaseHelper.getWordStringsByCategory(categoryName);
-      print('Repository: Found ${wordsByName.length} words by category name');
       
       if (wordsByName.isNotEmpty) {
         return wordsByName;
@@ -199,11 +191,9 @@ class CategoryRepository {
       
       // If that fails, try getting words by ID
       final wordsById = await _databaseHelper.getWordsByCategory(category.id);
-      print('Repository: Found ${wordsById.length} words by category ID');
       
       return wordsById.map((word) => word.word).toList();
     } catch (e) {
-      print('Repository: Error getting words for category $categoryName: $e');
       return [];
     }
   }
@@ -212,51 +202,40 @@ class CategoryRepository {
   Future<bool> forceSync() async {
     try {
       // Show console logging for debugging
-      print('Starting full Firebase sync...');
       
       // Check for internet connection
       final hasInternet = await _firebaseService.hasInternetConnection();
       if (!hasInternet) {
-        print('No internet connection detected');
         return false;
       }
 
       // Get all categories from Firestore
-      print('Fetching categories from Firebase...');
       final categories = await _firebaseService.getCategories();
       
       if (categories.isEmpty) {
-        print('No categories found in Firebase');
         return false; // No categories to sync
       }
 
-      print('Found ${categories.length} categories in Firebase');
 
       // Clear existing data
-      print('Clearing local database...');
       await _databaseHelper.clearAllData();
       
       // Insert all categories
-      print('Inserting categories into local database...');
       await _databaseHelper.insertCategories(categories);
       
       // For each category, fetch and save words
       int totalWords = 0;
       for (var category in categories) {
-        print('Fetching words for category: ${category.name}');
         final words = await _firebaseService.getWordsForCategory(category.id);
-        print('Found ${words.length} words for category: ${category.name}');
         totalWords += words.length;
         
         await _databaseHelper.insertWords(words);
       }
 
       // Update last sync timestamp
-      print('Sync complete. Synced ${categories.length} categories with $totalWords total words');
       await _updateLastSyncTimestamp();
       return true;
     } catch (e) {
-      print('Error during force sync: $e');
       return false;
     }
   }
@@ -282,7 +261,6 @@ class CategoryRepository {
       
       return null;
     } catch (e) {
-      print('Error getting category by name: $e');
       return null;
     }
   }
@@ -315,16 +293,13 @@ class CategoryRepository {
       
       if (isAdmin) {
         // In admin mode, update Firebase directly
-        print('Admin mode enabled, updating Firebase directly');
         await _firebaseService.removeWordsFromFirebase(category.id, wordsToRemove);
       }
     } catch (e) {
-      print('Error removing words: $e');
       throw e;
     }
   }
 
-  // UPDATED: Save a custom deck locally and to Firebase if in admin mode
   Future<void> saveCustomDeck(CategoryModel category, List<WordModel> words) async {
     try {
       // Insert or update the category locally
@@ -339,11 +314,9 @@ class CategoryRepository {
       
       if (isAdmin) {
         // In admin mode, update Firebase directly
-        print('Admin mode enabled, saving deck to Firebase directly');
         await _firebaseService.saveCategoryToFirebase(category, words);
       }
     } catch (e) {
-      print('Error saving custom deck: $e');
       throw e;
     }
   }
@@ -397,11 +370,9 @@ class CategoryRepository {
       
       // Only allow in admin mode
       if (!await _adminManager.isAdminModeEnabled()) {
-        print('Not in admin mode, sync to Firebase rejected');
         return false;
       }
       
-      print('Syncing all local data to Firebase...');
       
       // Get all categories with words
       final localData = await getAllCategoriesWithWords();
@@ -414,50 +385,40 @@ class CategoryRepository {
             .toList();
         
         // Upload to Firebase
-        print('Syncing category: ${category.name}');
         await _firebaseService.saveCategoryToFirebase(category, wordsList);
       }
       
-      print('All local data synced to Firebase successfully');
       return true;
     } catch (e) {
-      print('Error syncing to Firebase: $e');
       return false;
     }
   }
 
-  // Updated: Delete a deck (checks admin mode)
   Future<bool> deleteDeck(dynamic deckId) async {
     // Extract the string ID if we received a map
     final String categoryId = deckId is Map ? deckId['id'] : deckId;
     
     try {
-      print('Deleting deck with ID: $categoryId');
       
       // Get words for this category first to verify it exists
       final words = await _databaseHelper.getWordsByCategory(categoryId);
-      print('Found ${words.length} words for this deck');
       
       // Delete the words first
       await _databaseHelper.clearWordsForCategory(categoryId);
-      print('Deleted words from local database');
       
       // Then delete the category
       int result = await _databaseHelper.deleteCategory(categoryId);
-      print('Deleted category from local database: $result affected rows');
       
       // Check if in admin mode
       bool isAdmin = await _adminManager.isAdminModeEnabled();
       
       if (isAdmin) {
         // In admin mode, delete from Firebase directly
-        print('Admin mode enabled, deleting from Firebase directly');
         await _firebaseService.deleteCategoryFromFirebase(categoryId);
       }
       
       return result > 0; // Return true if at least one row was affected
     } catch (e) {
-      print('Error deleting deck: $e');
       return false;
     }
   }
@@ -477,7 +438,6 @@ class CategoryRepository {
       }
       return null;
     } catch (e) {
-      print('Error getting category by ID: $e');
       return null;
     }
   }
@@ -488,27 +448,21 @@ class CategoryRepository {
       // Check if we're online
       final hasInternet = await _firebaseService.hasInternetConnection();
       if (!hasInternet) {
-        print('No internet connection to download deck');
         return false;
       }
       
-      print('Downloading deck with ID: $categoryId');
       
       // Fetch the category data from Firebase
       final category = await _firebaseService.getCategoryById(categoryId);
       if (category == null) {
-        print('Category not found in Firebase');
         return false;
       }
       
-      print('Found category: ${category.name} (ID: ${category.id})');
       
       // Fetch the words for this category
       final words = await _firebaseService.getWordsForCategory(categoryId);
-      print('Downloaded ${words.length} words from Firebase');
       
       if (words.isEmpty) {
-        print('Warning: No words found for this category');
       }
       
       // Save to local database with proper transaction management
@@ -518,7 +472,6 @@ class CategoryRepository {
       try {
         // Use a transaction to ensure all-or-nothing saving
         await db.transaction((txn) async {
-          print('Starting transaction to save downloaded deck');
           
           // First check if category already exists locally
           final existingCat = await txn.query(
@@ -529,7 +482,6 @@ class CategoryRepository {
           
           if (existingCat.isNotEmpty) {
             // Update existing category
-            print('Category already exists locally, updating');
             await txn.update(
               'categories',
               {
@@ -549,7 +501,6 @@ class CategoryRepository {
             );
           } else {
             // Insert new category
-            print('Inserting new category into local database');
             await txn.insert(
               'categories',
               {
@@ -562,7 +513,6 @@ class CategoryRepository {
           }
           
           // Insert all words
-          print('Inserting ${words.length} words into local database');
           for (final word in words) {
             await txn.insert(
               'words',
@@ -574,31 +524,25 @@ class CategoryRepository {
             );
           }
           
-          print('Transaction completed successfully');
         });
         
         // Verify the download worked
         final savedCategory = await dbHelper.getCategoryByName(category.name);
         if (savedCategory == null) {
-          print('ERROR: Category not saved correctly');
           return false;
         }
         
         final savedWords = await dbHelper.getWordsByCategory(category.id);
-        print('Verification: Found ${savedWords.length} words in local database');
         
         if (savedWords.length != words.length) {
-          print('WARNING: Word count mismatch - expected ${words.length}, found ${savedWords.length}');
         }
         
         return savedWords.isNotEmpty; // Success if we have at least some words
         
       } catch (e) {
-        print('Transaction error when saving downloaded deck: $e');
         return false;
       }
     } catch (e) {
-      print('Error downloading deck: $e');
       return false;
     }
   }
@@ -609,12 +553,10 @@ class CategoryRepository {
       // First check internet connection
       final hasInternet = await _firebaseService.hasInternetConnection();
       if (!hasInternet) {
-        print('No internet connection detected');
         return false;
       }
 
       for (final deckName in deckNames) {
-        print('Syncing deck: $deckName');
         
         // Get category by name to get its ID
         final category = await _databaseHelper.getCategoryByName(deckName);
@@ -673,7 +615,6 @@ class CategoryRepository {
       await _updateLastSyncTimestamp();
       return true;
     } catch (e) {
-      print('Error during selective sync: $e');
       return false;
     }
   }

@@ -152,12 +152,10 @@ class DatabaseHelper {
   Future<List<String>> getWordStringsByCategory(String categoryName) async {
   final category = await getCategoryByName(categoryName);
   if (category == null) {
-    print('DatabaseHelper: Category not found for name: $categoryName');
     return [];
   }
   
   final db = await database;
-  print('DatabaseHelper: Getting words for category ID: ${category.id}');
   
   try {
     final List<Map<String, dynamic>> maps = await db.query(
@@ -167,11 +165,9 @@ class DatabaseHelper {
       whereArgs: [category.id],
     );
     
-    print('DatabaseHelper: Query returned ${maps.length} words');
     
     return List.generate(maps.length, (i) => maps[i]['word'] as String);
   } catch (e) {
-    print('DatabaseHelper: Error querying words: $e');
     
     // Try a raw query as fallback
     try {
@@ -180,10 +176,8 @@ class DatabaseHelper {
         [category.id]
       );
       
-      print('DatabaseHelper: Raw query returned ${result.length} words');
       return result.map((row) => row['word'] as String).toList();
     } catch (e) {
-      print('DatabaseHelper: Even raw query failed: $e');
       return [];
     }
   }
@@ -205,86 +199,6 @@ class DatabaseHelper {
     await db.delete('words');
     await db.delete('categories');
   }
-
-  // Add to DatabaseHelper
-
-Future<void> diagnoseDatabaseIssue(String categoryName) async {
-  print('===== DATABASE DIAGNOSIS =====');
-  final db = await database;
-  
-  try {
-    // Check if the category exists
-    print('Looking up category: "$categoryName"');
-    final List<Map<String, dynamic>> catMaps = await db.query(
-      'categories',
-      where: 'name = ?',
-      whereArgs: [categoryName],
-    );
-    
-    if (catMaps.isEmpty) {
-      print('ERROR: Category not found with exact name match');
-      
-      // Try case-insensitive search
-      final allCategories = await db.query('categories');
-      print('All categories in database:');
-      for (var cat in allCategories) {
-        print('- ${cat['id']}: ${cat['name']} (icon: ${cat['icon']})');
-        
-        // Check for similar names
-        if (cat['name'].toString().toLowerCase() == categoryName.toLowerCase()) {
-          print('FOUND MATCH with different case: ${cat['name']}');
-        }
-      }
-    } else {
-      final category = catMaps.first;
-      print('Category found: ${category['name']} (ID: ${category['id']})');
-      
-      // Check if there are words for this category
-      final categoryId = category['id'];
-      print('Looking for words with categoryId: "$categoryId"');
-      
-      final wordCount = Sqflite.firstIntValue(await db.rawQuery(
-        'SELECT COUNT(*) FROM words WHERE categoryId = ?', [categoryId]
-      ));
-      
-      print('Word count in database: $wordCount');
-      
-      if (wordCount == 0) {
-        print('ERROR: No words found for this category');
-        
-        // Check if any words exist at all
-        final totalWordsResult = await db.rawQuery('SELECT COUNT(*) FROM words');
-        final totalWords = Sqflite.firstIntValue(totalWordsResult) ?? 0; // Handle null with ?? operator
-        print('Total words in database: $totalWords');
-        
-        // Sample some random words to check structure
-        if (totalWords > 0) {
-          final sampleWords = await db.query('words', limit: 3);
-          print('Sample words:');
-          for (var word in sampleWords) {
-            print('- ${word['word']} (categoryId: ${word['categoryId']})');
-          }
-        }
-      } else {
-        // Words exist, check a few
-        final words = await db.query(
-          'words', 
-          where: 'categoryId = ?',
-          whereArgs: [categoryId],
-          limit: 5
-        );
-        
-        print('First 5 words:');
-        for (var word in words) {
-          print('- ${word['word']}');
-        }
-      }
-    }
-  } catch (e) {
-    print('DIAGNOSIS ERROR: $e');
-  }
-  print('===== END DIAGNOSIS =====');
-}
 
 Future<int> deleteCategory(String categoryId) async {
   final db = await database;

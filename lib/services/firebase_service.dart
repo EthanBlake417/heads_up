@@ -1,5 +1,3 @@
-// lib/services/firebase_service.dart
-// Complete implementation with all necessary methods
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:guess_it/models/category_model.dart';
 import 'package:guess_it/models/word_model.dart';
@@ -24,11 +22,9 @@ class FirebaseService {
         // If we got here, we definitely have a connection
         return true;
       } catch (e) {
-        print('Could not reach Firebase: $e');
         return false;
       }
     } catch (e) {
-      print('Error checking connectivity: $e');
       return false;
     }
   }
@@ -51,7 +47,6 @@ class FirebaseService {
       
       return null;
     } catch (e) {
-      print('Error fetching category by ID: $e');
       return null;
     }
   }
@@ -59,11 +54,9 @@ class FirebaseService {
   Future<List<CategoryModel>> getCategories() async {
     try {
       if (!await hasInternetConnection()) {
-        print('No internet connection while getting categories');
         return [];
       }
       
-      print('Fetching all categories from Firestore...');
       final QuerySnapshot snapshot = await _firestore.collection('categories').get();
       
       final categories = snapshot.docs.map((doc) {
@@ -73,10 +66,8 @@ class FirebaseService {
         );
       }).toList();
       
-      print('Successfully fetched ${categories.length} categories from Firestore');
       return categories;
     } catch (e) {
-      print('Error fetching categories from Firestore: $e');
       return [];
     }
   }
@@ -100,7 +91,6 @@ class FirebaseService {
         );
       }).toList();
     } catch (e) {
-      print('Error fetching updated categories: $e');
       return [];
     }
   }
@@ -109,11 +99,9 @@ class FirebaseService {
   Future<List<WordModel>> getWordsForCategory(String categoryId) async {
     try {
       if (!await hasInternetConnection()) {
-        print('No internet connection while getting words');
         return [];
       }
       
-      print('Fetching words for category $categoryId...');
       List<WordModel> allWords = [];
       
       // Use pagination to get all words (Firebase limits to ~1000 docs per query)
@@ -144,7 +132,6 @@ class FirebaseService {
         
         allWords.addAll(words);
         
-        print('Fetched ${words.length} words in this batch');
         
         if (snapshot.docs.length < 1000) {
           hasMoreDocs = false;
@@ -153,10 +140,8 @@ class FirebaseService {
         }
       }
       
-      print('Successfully fetched ${allWords.length} total words for category $categoryId');
       return allWords;
     } catch (e) {
-      print('Error fetching words for category $categoryId: $e');
       return [];
     }
   }
@@ -190,12 +175,10 @@ class FirebaseService {
           return latestCategory['lastUpdated'] ?? 0;
         }
       } catch (innerError) {
-        print('Error getting latest category timestamp: $innerError');
       }
       
       return 0;
     } catch (e) {
-      print('Error fetching version: $e');
       return 0;
     }
   }
@@ -204,17 +187,14 @@ class FirebaseService {
   Future<bool> saveCategoryToFirebase(CategoryModel category, List<WordModel> words) async {
     try {
       if (!await hasInternetConnection()) {
-        print('ERROR: No internet connection when trying to save to Firebase');
         return false;
       }
       
       // Only allow this operation in admin mode
       if (!await _adminManager.isAdminModeEnabled()) {
-        print('ERROR: Not in admin mode, Firebase update rejected');
         return false;
       }
       
-      print('Starting Firebase save for category ${category.name} (${category.id}) with ${words.length} words');
       
       // First, make sure the category exists
       await _firestore.collection('categories').doc(category.id).set({
@@ -224,7 +204,6 @@ class FirebaseService {
         'custom': true, // Mark as a custom category
       });
       
-      print('Category document created successfully');
       
       // Clear existing words for this category to avoid duplicates
       // Get reference to words collection
@@ -237,7 +216,6 @@ class FirebaseService {
       try {
         // Get all existing words
         QuerySnapshot existingWords = await wordsCollection.get();
-        print('Found ${existingWords.docs.length} existing words to remove');
         
         // Delete in batches (Firestore limits batch size)
         int batchSize = 0;
@@ -250,7 +228,6 @@ class FirebaseService {
           // Commit batch when it reaches limit
           if (batchSize >= 500) {
             await deleteBatch.commit();
-            print('Deleted batch of $batchSize existing words');
             deleteBatch = _firestore.batch();
             batchSize = 0;
           }
@@ -259,10 +236,8 @@ class FirebaseService {
         // Commit remaining deletes
         if (batchSize > 0) {
           await deleteBatch.commit();
-          print('Deleted final batch of $batchSize existing words');
         }
       } catch (e) {
-        print('Error clearing existing words: $e');
         // Continue anyway - we'll overwrite words with the same ID
       }
       
@@ -284,14 +259,11 @@ class FirebaseService {
           
           await batch.commit();
           totalAdded += chunk.length;
-          print('Added batch of ${chunk.length} words (total: $totalAdded/${words.length})');
         } catch (e) {
-          print('Error adding batch of words: $e');
           // Continue with the next batch
         }
       }
       
-      print('Successfully saved $totalAdded/${words.length} words to Firebase');
       
       // Update category timestamp to reflect the change
       await _firestore.collection('categories').doc(category.id).update({
@@ -300,7 +272,6 @@ class FirebaseService {
       
       return totalAdded > 0 || words.isEmpty;
     } catch (e) {
-      print('Error saving category to Firebase: $e');
       return false;
     }
   }
@@ -314,7 +285,6 @@ class FirebaseService {
       
       // Only allow this operation in admin mode
       if (!await _adminManager.isAdminModeEnabled()) {
-        print('Not in admin mode, Firebase deletion rejected');
         return false;
       }
       
@@ -338,10 +308,8 @@ class FirebaseService {
       // Execute all deletions
       await batch.commit();
       
-      print('Category and words deleted from Firebase: $categoryId');
       return true;
     } catch (e) {
-      print('Error deleting category from Firebase: $e');
       return false;
     }
   }
@@ -355,7 +323,6 @@ class FirebaseService {
       
       // Only allow this operation in admin mode
       if (!await _adminManager.isAdminModeEnabled()) {
-        print('Not in admin mode, Firebase word removal rejected');
         return false;
       }
       
@@ -384,10 +351,8 @@ class FirebaseService {
       // Execute all deletions
       await batch.commit();
       
-      print('Words removed from Firebase: ${wordsToRemove.length} words');
       return true;
     } catch (e) {
-      print('Error removing words from Firebase: $e');
       return false;
     }
   }

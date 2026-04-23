@@ -309,6 +309,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void onCorrect() {
+    if (correctWords.contains(currentWord) || passedWords.contains(currentWord)) return;
     Vibration.vibrate(duration: 350);
     _playSound('correct.mp3');
     setState(() {
@@ -320,6 +321,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void onPass() {
+    if (correctWords.contains(currentWord) || passedWords.contains(currentWord)) return;
     Vibration.vibrate(duration: 350);
     if (mounted) {
       setState(() {
@@ -342,11 +344,21 @@ class _GameScreenState extends State<GameScreen> {
   void endGame() {
     timer.cancel();
     _playSound('times_up.mp3');
+
+    // Capture the word that was on screen when time ran out, if it was never resolved
+    final String? skippedWord = (
+      currentWord != 'No More Words in this Deck' &&
+      !correctWords.contains(currentWord) &&
+      !passedWords.contains(currentWord)
+    ) ? currentWord : null;
+
     setState(() {
       _displayText = "Time's Up!";
       _backgroundColors = [Colors.red.shade700, Colors.red.shade300];
     });
     Vibration.vibrate(duration: 1500);
+
+    if (skippedWord != null) passedWords.add(skippedWord);
 
     widget.usedWords.addAll(correctWords);
     widget.usedWords.addAll(passedWords);
@@ -436,11 +448,12 @@ class _GameScreenState extends State<GameScreen> {
                             color: Colors.white,
                           ),
                         ),
-                      const SizedBox(height: 40),
+                      if (isGameStarted)
+                        const SizedBox(height: 8),
                       if (_isPlacingOnForehead || _isCountingDown || isGameStarted)
                         Flexible(
                           child: Padding(
-                            padding: const EdgeInsets.all(20.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
                             child: AutoSizeText(
                               _displayText,
                               style: const TextStyle(
@@ -449,8 +462,8 @@ class _GameScreenState extends State<GameScreen> {
                                 color: Colors.white,
                               ),
                               textAlign: TextAlign.center,
-                              maxLines: 2,
-                              minFontSize: 20,
+                              maxLines: 3,
+                              minFontSize: 12,
                             ),
                           ),
                         ),

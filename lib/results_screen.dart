@@ -35,10 +35,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
       setState(() {
         _removeWordsEnabled = prefs.getBool('removeWordsEnabled') ?? false;
       });
     } catch (e) {
+      debugPrint('ResultsScreen._loadSettings error: $e');
     }
   }
 

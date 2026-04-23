@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:guess_it/repositories/category_repository.dart';
-import 'dart:convert';
 import 'package:guess_it/admin_auth_screen.dart';
 import 'package:guess_it/utils/admin_mode_manager.dart';
 
@@ -41,25 +40,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
       setState(() {
         _soundEnabled = prefs.getBool('soundEnabled') ?? true;
         _gameDuration = prefs.getInt('gameDuration') ?? 60;
         _removeWordsEnabled = prefs.getBool('removeWordsEnabled') ?? false;
       });
     } catch (e) {
-      print('Error loading settings: $e');
-      // Use default values if loading fails
+      debugPrint('SettingsScreen._loadSettings error: $e');
     }
   }
 
   _checkAdminMode() async {
     try {
       final isAdmin = await _adminManager.isAdminModeEnabled();
+      if (!mounted) return;
       setState(() {
         _isAdminMode = isAdmin;
       });
     } catch (e) {
-      print('Error checking admin mode: $e');
+      debugPrint('SettingsScreen._checkAdminMode error: $e');
     }
   }
 
@@ -70,8 +70,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setInt('gameDuration', _gameDuration);
       await prefs.setBool('removeWordsEnabled', _removeWordsEnabled);
     } catch (e) {
-      print('Error saving settings: $e');
-      // Show an error message to the user
+      debugPrint('SettingsScreen._saveSettings error: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to save settings. Please try again.')),
       );
@@ -85,6 +85,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     try {
       final result = await _categoryRepository.forceSync();
+      if (!mounted) return;
       if (result) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Categories and words updated successfully!')),
@@ -95,13 +96,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error syncing data: $e')),
+        SnackBar(content: Text('Error syncing data. Please try again.')),
       );
     } finally {
-      setState(() {
-        _isSyncing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
     }
   }
 

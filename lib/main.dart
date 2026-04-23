@@ -72,8 +72,7 @@ class MainTabScreen extends StatefulWidget {
 
 class _MainTabScreenState extends State<MainTabScreen> {
   int _currentIndex = 0;
-  // Key to force homepage refresh when returning from custom deck creator
-  final GlobalKey<_HomePageState> _homePageKey = GlobalKey<_HomePageState>();
+  int _homeRefreshCount = 0;
   bool _isAdminMode = false;
   final AdminModeManager _adminManager = AdminModeManager();
   
@@ -102,11 +101,10 @@ class _MainTabScreenState extends State<MainTabScreen> {
     });
   }
   
-  // Method to explicitly refresh the home page
   void _refreshHomeTab() {
-    if (_homePageKey.currentState != null) {
-      _homePageKey.currentState?.loadCategories();
-    }
+    setState(() {
+      _homeRefreshCount++;
+    });
   }
   
   // Listener for admin mode changes
@@ -148,12 +146,11 @@ class _MainTabScreenState extends State<MainTabScreen> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          // Home/Categories page with key for refreshing
           HomePage(
-            key: _homePageKey,
-            title: 'Guess It', 
-            usedWords: widget.usedWords, 
-            resetUsedWords: widget.resetUsedWords
+            key: ValueKey(_homeRefreshCount),
+            title: 'Guess It',
+            usedWords: widget.usedWords,
+            resetUsedWords: widget.resetUsedWords,
           ),
           // Deck Management Screen (only accessible in admin mode)
           DeckManagementScreen(
@@ -269,12 +266,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadCategories();
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
     _loadCategories();
   }
 
@@ -430,8 +421,3 @@ class SimpleDeckCard extends StatelessWidget {
   }
 }
 
-extension HomePageStateExtension on _HomePageState {
-  Future<void> loadCategories() async {
-    return _loadCategories();
-  }
-}

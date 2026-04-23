@@ -71,14 +71,14 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading online decks: $e');
+      debugPrint('OnlineDecksScreen._loadOnlineDecks error: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading online decks: ${e.toString()}'),
+          content: Text('Error loading online decks.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -94,57 +94,56 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
     });
     
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Downloading ${deck['name']}...'))
-      );
-      
-      // Download the deck
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Downloading ${deck['name']}...')),
+        );
+      }
+
       final categoryId = deck['id'];
       final success = await _categoryRepository.downloadDeck(categoryId);
-      
+      if (!mounted) return;
+
       if (success) {
-        // Update local state
         setState(() {
           _downloadedDeckIds.add(categoryId);
-          // Update the downloaded status in the list
           for (var d in _onlineDecks) {
             if (d['id'] == categoryId) {
               d['isDownloaded'] = true;
             }
           }
         });
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${deck['name']} downloaded successfully!'),
             backgroundColor: Colors.green,
-          )
+          ),
         );
-        
-        // Refresh home tab to show the new deck
         widget.refreshHomeTab();
-        
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to download ${deck['name']}'),
+            content: Text('Failed to download ${deck['name']}.'),
             backgroundColor: Colors.red,
-          )
+          ),
         );
       }
     } catch (e) {
-      print('Error downloading deck: $e');
+      debugPrint('OnlineDecksScreen._downloadDeck error: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error downloading deck: ${e.toString()}'),
+          content: Text('Error downloading deck.'),
           backgroundColor: Colors.red,
-        )
+        ),
       );
     } finally {
-      setState(() {
-        _isDownloading = false;
-        _currentlyProcessingId = '';
-      });
+      if (mounted) {
+        setState(() {
+          _isDownloading = false;
+          _currentlyProcessingId = '';
+        });
+      }
     }
   }
 
@@ -200,29 +199,30 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
         }
       });
       
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${deck['name']} removed from your device'),
           backgroundColor: Colors.blue,
-        )
+        ),
       );
-      
-      // Refresh home tab to update the list
       widget.refreshHomeTab();
-      
     } catch (e) {
-      print('Error deleting local deck: $e');
+      debugPrint('OnlineDecksScreen._deleteLocalDeck error: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error deleting deck from device: ${e.toString()}'),
+          content: Text('Error deleting deck from device.'),
           backgroundColor: Colors.red,
-        )
+        ),
       );
     } finally {
-      setState(() {
-        _isDeleting = false;
-        _currentlyProcessingId = '';
-      });
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+          _currentlyProcessingId = '';
+        });
+      }
     }
   }
   

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:guess_it/repositories/category_repository.dart';
 import 'package:guess_it/utils/admin_mode_manager.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class WordRemovalScreen extends StatefulWidget {
   final String deckName;

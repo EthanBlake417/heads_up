@@ -1,30 +1,24 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:guess_it/models/category_model.dart';
 import 'package:guess_it/models/word_model.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:guess_it/utils/admin_mode_manager.dart';
 
 class FirebaseService {
+  static final FirebaseService _instance = FirebaseService._internal();
+  factory FirebaseService() => _instance;
+  FirebaseService._internal();
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AdminModeManager _adminManager = AdminModeManager();
 
-  // Check internet connection
   Future<bool> hasInternetConnection() async {
     try {
-      var connectivityResult = await Connectivity().checkConnectivity();
-      if (connectivityResult == ConnectivityResult.none) {
-        return false;
-      }
-      
-      // Additional check - try to reach Firebase
-      try {
-        final DocumentSnapshot testDoc = await _firestore.collection('metadata').doc('version').get();
-        // If we got here, we definitely have a connection
-        return true;
-      } catch (e) {
-        return false;
-      }
+      final result = await Connectivity().checkConnectivity();
+      return result != ConnectivityResult.none;
     } catch (e) {
+      debugPrint('FirebaseService.hasInternetConnection error: $e');
       return false;
     }
   }
@@ -47,6 +41,7 @@ class FirebaseService {
       
       return null;
     } catch (e) {
+      debugPrint('FirebaseService.getCategoryById error: $e');
       return null;
     }
   }
@@ -56,18 +51,19 @@ class FirebaseService {
       if (!await hasInternetConnection()) {
         return [];
       }
-      
+
       final QuerySnapshot snapshot = await _firestore.collection('categories').get();
-      
+
       final categories = snapshot.docs.map((doc) {
         return CategoryModel.fromFirestore(
-          doc.data() as Map<String, dynamic>, 
+          doc.data() as Map<String, dynamic>,
           doc.id
         );
       }).toList();
-      
+
       return categories;
     } catch (e) {
+      debugPrint('FirebaseService.getCategories error: $e');
       return [];
     }
   }
@@ -78,19 +74,20 @@ class FirebaseService {
       if (!await hasInternetConnection()) {
         return [];
       }
-      
+
       final QuerySnapshot snapshot = await _firestore
           .collection('categories')
           .where('lastUpdated', isGreaterThan: timestamp)
           .get();
-      
+
       return snapshot.docs.map((doc) {
         return CategoryModel.fromFirestore(
-          doc.data() as Map<String, dynamic>, 
+          doc.data() as Map<String, dynamic>,
           doc.id
         );
       }).toList();
     } catch (e) {
+      debugPrint('FirebaseService.getCategoriesSince error: $e');
       return [];
     }
   }
@@ -142,6 +139,7 @@ class FirebaseService {
       
       return allWords;
     } catch (e) {
+      debugPrint('FirebaseService.getWordsForCategory error: $e');
       return [];
     }
   }
@@ -179,6 +177,7 @@ class FirebaseService {
       
       return 0;
     } catch (e) {
+      debugPrint('FirebaseService.getLatestVersion error: $e');
       return 0;
     }
   }
@@ -238,29 +237,25 @@ class FirebaseService {
           await deleteBatch.commit();
         }
       } catch (e) {
-        // Continue anyway - we'll overwrite words with the same ID
+        debugPrint('FirebaseService.saveCategoryToFirebase delete error: $e');
       }
-      
-      // Add all new words in smaller batches
+
+      // Add all new words in batches of 500 (Firestore limit)
       int totalAdded = 0;
-      
-      // Process in chunks of 100 to avoid Firestore limits
-      for (int i = 0; i < words.length; i += 100) {
-        int endIdx = (i + 100 < words.length) ? i + 100 : words.length;
-        List<WordModel> chunk = words.sublist(i, endIdx);
-        
+
+      for (int i = 0; i < words.length; i += 500) {
+        final chunk = words.sublist(i, (i + 500 < words.length) ? i + 500 : words.length);
+
         try {
-          WriteBatch batch = _firestore.batch();
-          
+          final batch = _firestore.batch();
           for (var word in chunk) {
-            DocumentReference wordRef = wordsCollection.doc(word.id);
+            final wordRef = wordsCollection.doc(word.id);
             batch.set(wordRef, {'word': word.word});
           }
-          
           await batch.commit();
           totalAdded += chunk.length;
         } catch (e) {
-          // Continue with the next batch
+          debugPrint('FirebaseService.saveCategoryToFirebase batch error: $e');
         }
       }
       
@@ -272,10 +267,11 @@ class FirebaseService {
       
       return totalAdded > 0 || words.isEmpty;
     } catch (e) {
+      debugPrint('FirebaseService.saveCategoryToFirebase error: $e');
       return false;
     }
   }
-  
+
   // Delete a category directly from Firebase
   Future<bool> deleteCategoryFromFirebase(String categoryId) async {
     try {
@@ -310,10 +306,11 @@ class FirebaseService {
       
       return true;
     } catch (e) {
+      debugPrint('FirebaseService.deleteCategoryFromFirebase error: $e');
       return false;
     }
   }
-  
+
   // Remove specific words from a category in Firebase
   Future<bool> removeWordsFromFirebase(String categoryId, List<String> wordsToRemove) async {
     try {
@@ -353,6 +350,7 @@ class FirebaseService {
       
       return true;
     } catch (e) {
+      debugPrint('FirebaseService.removeWordsFromFirebase error: $e');
       return false;
     }
   }

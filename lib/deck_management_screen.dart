@@ -38,23 +38,22 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
     });
 
     try {
-      // Get categories directly from Firebase instead of local database
       final categories = await _firebaseService.getCategories();
-      
+      if (!mounted) return;
       setState(() {
         _firebaseDecks = categories;
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('DeckManagementScreen._loadFirebaseCategories error: $e');
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _firebaseDecks = [];
       });
-      
-      // Show error snackbar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading decks from Firebase: ${e.toString()}'),
+          content: Text('Error loading decks from Firebase.'),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
@@ -77,7 +76,8 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
     
     try {
       final success = await action();
-      
+      if (!mounted) return;
+
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -86,11 +86,8 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-        
-        // Refresh both screens
         await _loadFirebaseCategories();
         widget.refreshHomeTab();
-        
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -101,17 +98,21 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
         );
       }
     } catch (e) {
+      debugPrint('DeckManagementScreen._processAction ($actionName) error: $e');
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('$errorMessage: ${e.toString()}'),
+          content: Text(errorMessage),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
       );
     } finally {
-      setState(() {
-        _isProcessing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
     }
   }
 

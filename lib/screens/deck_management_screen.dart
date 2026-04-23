@@ -1,7 +1,7 @@
 // deck_management_screen.dart
 import 'package:flutter/material.dart';
 import 'package:guess_it/services/firebase_service.dart';
-import 'package:guess_it/deck_editor_screen.dart';
+import 'package:guess_it/screens/deck_editor_screen.dart';
 import 'package:guess_it/models/category_model.dart';
 import 'package:guess_it/utils/icon_mapping.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

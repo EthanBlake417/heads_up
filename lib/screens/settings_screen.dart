@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:guess_it/repositories/category_repository.dart';
-import 'package:guess_it/admin_auth_screen.dart';
+import 'package:guess_it/screens/admin_auth_screen.dart';
 import 'package:guess_it/utils/admin_mode_manager.dart';
 
 class SettingsScreen extends StatefulWidget {

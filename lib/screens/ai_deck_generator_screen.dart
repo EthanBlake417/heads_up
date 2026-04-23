@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:guess_it/database_helper.dart';
+import 'package:guess_it/services/database_helper.dart';
 import 'package:guess_it/models/category_model.dart';
 import 'package:guess_it/models/word_model.dart';
 import 'package:uuid/uuid.dart';

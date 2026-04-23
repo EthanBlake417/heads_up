@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:guess_it/models/category_model.dart';
 import 'package:guess_it/models/word_model.dart';
 import 'package:guess_it/services/firebase_service.dart';
-import 'package:guess_it/database_helper.dart';
+import 'package:guess_it/services/database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import 'package:guess_it/utils/icon_mapping.dart';

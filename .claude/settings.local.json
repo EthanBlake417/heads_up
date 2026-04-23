@@ -3,7 +3,17 @@
     "allow": [
       "Bash(xargs wc *)",
       "Bash(python remove_prints.py)",
-      "Bash(flutter analyze *)"
+      "Bash(flutter analyze *)",
+      "Bash(mkdir -p \"/c/Users/ethan/Desktop/Guess It/guess_it/lib/screens\")",
+      "Bash(mv admin_auth_screen.dart screens/)",
+      "Bash(mv ai_deck_generator.dart screens/ai_deck_generator_screen.dart)",
+      "Bash(mv deck_editor_screen.dart screens/)",
+      "Bash(mv deck_management_screen.dart screens/)",
+      "Bash(sed -i \"s|package:guess_it/deck_editor_screen.dart|package:guess_it/screens/deck_editor_screen.dart|g\" \"/c/Users/ethan/Desktop/Guess It/guess_it/lib/screens/deck_management_screen.dart\")",
+      "Bash(sed -i \"s|package:guess_it/game_screen.dart|package:guess_it/screens/game_screen.dart|g\" \"/c/Users/ethan/Desktop/Guess It/guess_it/lib/screens/results_screen.dart\")",
+      "Bash(sed -i \"s|package:guess_it/word_removal_screen.dart|package:guess_it/screens/word_removal_screen.dart|g\" \"/c/Users/ethan/Desktop/Guess It/guess_it/lib/screens/results_screen.dart\")",
+      "Bash(sed -i \"s|package:guess_it/admin_auth_screen.dart|package:guess_it/screens/admin_auth_screen.dart|g\" \"/c/Users/ethan/Desktop/Guess It/guess_it/lib/screens/settings_screen.dart\")",
+      "Bash(sed -i \"s|package:guess_it/database_helper.dart|package:guess_it/services/database_helper.dart|g\" \"/c/Users/ethan/Desktop/Guess It/guess_it/lib/screens/ai_deck_generator_screen.dart\")"
     ]
   }
 }

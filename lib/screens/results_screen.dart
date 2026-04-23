@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:guess_it/game_screen.dart';
-import 'package:guess_it/word_removal_screen.dart';
+import 'package:guess_it/screens/game_screen.dart';
+import 'package:guess_it/screens/word_removal_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ResultsScreen extends StatefulWidget {

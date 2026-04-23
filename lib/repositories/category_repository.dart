@@ -64,23 +64,39 @@ class CategoryRepository {
         return false;
       }
 
-      final localVersion = await _databaseHelper.getLastUpdatedTimestamp();
-      final categories = await _firebaseService.getCategoriesSince(localVersion);
-
-      if (categories.isEmpty) {
+      final allFirebaseCategories = await _firebaseService.getCategories();
+      if (allFirebaseCategories.isEmpty) {
         await _updateLastSyncTimestamp();
         return true;
       }
 
-      // Fetch all categories' words in parallel instead of sequentially
-      final wordLists = await Future.wait(
-        categories.map((c) => _firebaseService.getWordsForCategory(c.id)),
-      );
+      final firebaseIds = allFirebaseCategories.map((c) => c.id).toSet();
 
-      for (int i = 0; i < categories.length; i++) {
-        await _databaseHelper.insertCategory(categories[i]);
-        await _databaseHelper.clearWordsForCategory(categories[i].id);
-        await _databaseHelper.insertWords(wordLists[i]);
+      // Remove local categories that no longer exist in Firebase
+      final localCategories = await _databaseHelper.getCategories();
+      for (final local in localCategories) {
+        if (!firebaseIds.contains(local.id)) {
+          await _databaseHelper.clearWordsForCategory(local.id);
+          await _databaseHelper.deleteCategory(local.id);
+        }
+      }
+
+      // Incrementally sync only categories updated since last sync
+      final localVersion = await _databaseHelper.getLastUpdatedTimestamp();
+      final updatedCategories = allFirebaseCategories
+          .where((c) => c.lastUpdated > localVersion)
+          .toList();
+
+      if (updatedCategories.isNotEmpty) {
+        final wordLists = await Future.wait(
+          updatedCategories.map((c) => _firebaseService.getWordsForCategory(c.id)),
+        );
+
+        for (int i = 0; i < updatedCategories.length; i++) {
+          await _databaseHelper.insertCategory(updatedCategories[i]);
+          await _databaseHelper.clearWordsForCategory(updatedCategories[i].id);
+          await _databaseHelper.insertWords(wordLists[i]);
+        }
       }
 
       await _updateLastSyncTimestamp();

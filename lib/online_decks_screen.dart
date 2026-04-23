@@ -164,7 +164,7 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: Colors.blueGrey.shade700,
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(context).pop(true),
@@ -319,7 +319,7 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
                                       child: Text(
                                         'Status: Downloaded to your device',
                                         style: TextStyle(
-                                          color: Colors.green.shade700,
+                                          color: Colors.blue.shade700,
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -338,7 +338,7 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
                                           icon: Icon(Icons.delete_outline),
                                           label: Text('Remove'),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.red,
+                                            backgroundColor: Colors.blueGrey.shade700,
                                             foregroundColor: Colors.white,
                                           ),
                                           onPressed: () => _deleteLocalDeck(deck),

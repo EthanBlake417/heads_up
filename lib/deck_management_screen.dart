@@ -236,7 +236,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                                               ),
                                               ElevatedButton(
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.red,
+                                                  backgroundColor: Colors.blueGrey.shade700,
                                                   foregroundColor: Colors.white,
                                                 ),
                                                 onPressed: () => Navigator.pop(context, true),
@@ -297,7 +297,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                                                 },
                                               ),
                                               IconButton(
-                                                icon: Icon(Icons.delete, color: Colors.red),
+                                                icon: Icon(Icons.delete, color: Colors.blueGrey.shade400),
                                                 onPressed: _isProcessing ? null : () {
                                                   showDialog(
                                                     context: context,

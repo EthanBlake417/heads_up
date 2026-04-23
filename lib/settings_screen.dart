@@ -271,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     trailing: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isAdminMode ? Colors.red : Colors.blue.shade700,
+                        backgroundColor: _isAdminMode ? Colors.orange.shade700 : Colors.blue.shade700,
                         foregroundColor: Colors.white,
                       ),
                       onPressed: _toggleAdminMode,

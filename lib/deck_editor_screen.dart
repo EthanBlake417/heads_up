@@ -410,7 +410,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
+                    backgroundColor: Colors.blueGrey.shade700,
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () => Navigator.of(context).pop(true),
@@ -721,7 +721,7 @@ class _DeckEditorScreenState extends State<DeckEditorScreen> {
                                             style: TextStyle(fontSize: 16),
                                           ),
                                           trailing: IconButton(
-                                            icon: Icon(Icons.delete, color: Colors.red),
+                                            icon: Icon(Icons.delete, color: Colors.blueGrey.shade400),
                                             onPressed: () => _removeWord(word),
                                           ),
                                         ),

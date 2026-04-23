@@ -431,7 +431,7 @@ class _AIDeckGeneratorState extends State<AIDeckGenerator> {
                   activeColor: Colors.blue.shade700,
                   // Add a delete button for custom words
                   secondary: IconButton(
-                    icon: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                    icon: Icon(Icons.delete_outline, color: Colors.blueGrey.shade400),
                     onPressed: () {
                       setState(() {
                         _generatedWords.remove(word);

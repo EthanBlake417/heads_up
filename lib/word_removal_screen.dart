@@ -129,7 +129,7 @@ class _WordRemovalScreenState extends State<WordRemovalScreen> {
                         }
                       });
                     },
-                    activeColor: Colors.red.shade600,
+                    activeColor: Colors.blue.shade600,
                     checkColor: Colors.white,
                   );
                 },
@@ -173,7 +173,7 @@ class _WordRemovalScreenState extends State<WordRemovalScreen> {
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade600,
+                  backgroundColor: Colors.blue.shade700,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                   shape: RoundedRectangleBorder(

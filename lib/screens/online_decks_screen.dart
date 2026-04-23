@@ -29,7 +29,21 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
   List<Map<String, dynamic>> _onlineDecks = [];
   String _currentlyProcessingId = '';
   Set<String> _downloadedDeckIds = {};
-  
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  List<Map<String, dynamic>> get _filteredDecks => _searchQuery.isEmpty
+      ? _onlineDecks
+      : _onlineDecks
+          .where((d) => (d['name'] as String).toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,10 +79,12 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
         };
       }).toList();
       
+      _searchController.clear();
       setState(() {
         _onlineDecks = decks;
         _downloadedDeckIds = localDeckIds;
         _isLoading = false;
+        _searchQuery = '';
       });
     } catch (e) {
       debugPrint('OnlineDecksScreen._loadOnlineDecks error: $e');
@@ -275,12 +291,52 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
                       ],
                     ),
                   )
-                : RefreshIndicator(
-                    onRefresh: _loadOnlineDecks,
-                    child: ListView.builder(
-                      itemCount: _onlineDecks.length,
-                      itemBuilder: (context, index) {
-                        final deck = _onlineDecks[index];
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search decks...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          onChanged: (value) => setState(() => _searchQuery = value),
+                        ),
+                      ),
+                      Expanded(
+                        child: _filteredDecks.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.search_off, size: 64, color: Colors.grey),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'No decks match your search',
+                                      style: TextStyle(fontSize: 18),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadOnlineDecks,
+                                child: ListView.builder(
+                                  itemCount: _filteredDecks.length,
+                                  itemBuilder: (context, index) {
+                                    final deck = _filteredDecks[index];
                         final bool isDownloaded = deck['isDownloaded'] ?? false;
                         final bool isCurrentlyProcessing = 
                             (_isDownloading || _isDeleting) && _currentlyProcessingId == deck['id'];
@@ -356,8 +412,11 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
                           ),
                         );
                       },
-                    ),
-                  ),
+                                    ),
+                                  ),
+                              ),
+                            ],
+                          ),
       ),
     );
   }

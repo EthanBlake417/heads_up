@@ -335,6 +335,17 @@ class CategoryRepository {
     }
   }
 
+  Future<bool> deleteLocalOnly(String categoryId) async {
+    try {
+      await _databaseHelper.clearWordsForCategory(categoryId);
+      final result = await _databaseHelper.deleteCategory(categoryId);
+      return result > 0;
+    } catch (e) {
+      debugPrint('CategoryRepository.deleteLocalOnly error: $e');
+      return false;
+    }
+  }
+
   Future<bool> deleteDeck(dynamic deckId) async {
     final String categoryId = deckId is Map ? deckId['id'] : deckId;
 

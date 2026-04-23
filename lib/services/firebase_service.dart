@@ -4,6 +4,7 @@ import 'package:guess_it/models/category_model.dart';
 import 'package:guess_it/models/word_model.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:guess_it/utils/admin_mode_manager.dart';
+import 'package:guess_it/utils/word_filter.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -309,6 +310,50 @@ class FirebaseService {
       debugPrint('FirebaseService.deleteCategoryFromFirebase error: $e');
       return false;
     }
+  }
+
+  Future<Map<String, int>> pruneInappropriateWords() async {
+    int totalChecked = 0;
+    int totalRemoved = 0;
+
+    if (!await hasInternetConnection()) {
+      return {'checked': 0, 'removed': 0};
+    }
+
+    if (!await _adminManager.isAdminModeEnabled()) {
+      return {'checked': 0, 'removed': 0};
+    }
+
+    final categories = await getCategories();
+
+    for (final category in categories) {
+      final words = await getWordsForCategory(category.id);
+      totalChecked += words.length;
+
+      final toRemove = words.where((w) => WordFilter.isInappropriate(w.word)).toList();
+      if (toRemove.isEmpty) continue;
+
+      // Delete in batches of 500 (Firestore limit)
+      for (int i = 0; i < toRemove.length; i += 500) {
+        final chunk = toRemove.sublist(i, (i + 500 < toRemove.length) ? i + 500 : toRemove.length);
+        final batch = _firestore.batch();
+        for (final word in chunk) {
+          batch.delete(
+            _firestore.collection('categories').doc(category.id).collection('words').doc(word.id),
+          );
+        }
+        await batch.commit();
+      }
+
+      // Bump the category's lastUpdated so clients re-sync the word list
+      await _firestore.collection('categories').doc(category.id).update({
+        'lastUpdated': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      totalRemoved += toRemove.length;
+    }
+
+    return {'checked': totalChecked, 'removed': totalRemoved};
   }
 
   // Remove specific words from a category in Firebase

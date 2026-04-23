@@ -24,7 +24,15 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   List<CategoryModel> _firebaseDecks = [];
   bool _isLoading = true;
-  bool _isProcessing = false; // Added to track processing state
+  bool _isProcessing = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -40,9 +48,11 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
     try {
       final categories = await _firebaseService.getCategories();
       if (!mounted) return;
+      _searchController.clear();
       setState(() {
         _firebaseDecks = categories;
         _isLoading = false;
+        _searchQuery = '';
       });
     } catch (e) {
       debugPrint('DeckManagementScreen._loadFirebaseCategories error: $e');
@@ -116,6 +126,84 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
     }
   }
 
+  List<CategoryModel> get _filteredDecks => _searchQuery.isEmpty
+      ? _firebaseDecks
+      : _firebaseDecks
+          .where((d) => d.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+          .toList();
+
+  Future<void> _confirmPruneWords() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove Inappropriate Words'),
+        content: Text(
+          'This will scan every deck in the database and permanently delete any words related to profanity or sexual content.\n\nThis cannot be undone. Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Remove'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isProcessing = true);
+
+    try {
+      final result = await _firebaseService.pruneInappropriateWords();
+      if (!mounted) return;
+
+      final removed = result['removed'] ?? 0;
+      final checked = result['checked'] ?? 0;
+
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Pruning Complete'),
+          content: Text(
+            removed == 0
+                ? 'Scanned $checked words — nothing flagged.'
+                : 'Scanned $checked words and removed $removed inappropriate word${removed == 1 ? '' : 's'}.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK'),
+            ),
+          ],
+        ),
+      );
+
+      if (removed > 0) {
+        await _loadFirebaseCategories();
+        widget.refreshHomeTab();
+      }
+    } catch (e) {
+      debugPrint('DeckManagementScreen._confirmPruneWords error: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to prune words. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -124,7 +212,11 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         actions: [
-          // Add refresh button
+          IconButton(
+            icon: Icon(Icons.filter_list_off),
+            onPressed: _isProcessing ? null : _confirmPruneWords,
+            tooltip: 'Remove inappropriate words',
+          ),
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: _isProcessing ? null : _loadFirebaseCategories,
@@ -168,6 +260,29 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                           },
                         ),
                       ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search decks...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          onChanged: (value) => setState(() => _searchQuery = value),
+                        ),
+                      ),
                       // Firebase label
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -204,12 +319,26 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                                   ],
                                 ),
                               )
-                            : RefreshIndicator(
-                                onRefresh: _loadFirebaseCategories,
-                                child: ListView.builder(
-                                  itemCount: _firebaseDecks.length,
-                                  itemBuilder: (context, index) {
-                                    final deck = _firebaseDecks[index];
+                            : _filteredDecks.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.search_off, size: 64, color: Colors.grey),
+                                        SizedBox(height: 16),
+                                        Text(
+                                          'No decks match your search',
+                                          style: TextStyle(fontSize: 18),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : RefreshIndicator(
+                                    onRefresh: _loadFirebaseCategories,
+                                    child: ListView.builder(
+                                      itemCount: _filteredDecks.length,
+                                      itemBuilder: (context, index) {
+                                        final deck = _filteredDecks[index];
                                     final IconData iconData = IconMapping.getIconFromKey(deck.icon);
                                     
                                     return Dismissible(
@@ -257,7 +386,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                                         
                                         // Optimistically remove from the list
                                         setState(() {
-                                          _firebaseDecks.removeAt(index);
+                                          _firebaseDecks.removeWhere((d) => d.id == deck.id);
                                         });
                                       },
                                       child: Card(

@@ -262,6 +262,26 @@ class _HomePageState extends State<HomePage> {
   final CategoryRepository _categoryRepository = CategoryRepository();
   List<Map<String, dynamic>> _decks = [];
   bool _isLoading = true;
+  bool _editMode = false;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  List<Map<String, dynamic>> get _filteredDecks {
+    if (_searchQuery.isEmpty) return _decks;
+    final query = _searchQuery.toLowerCase();
+    return _decks.where((d) {
+      if (d['id'] == 'all_categories') return true;
+      return (d['name'] as String).toLowerCase().contains(query);
+    }).toList();
+  }
+
+  static const _orderPrefsKey = 'home_deck_order';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -269,36 +289,219 @@ class _HomePageState extends State<HomePage> {
     _loadCategories();
   }
 
+  Future<List<String>> _loadOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(_orderPrefsKey) ?? [];
+  }
+
+  Future<void> _saveOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_orderPrefsKey, _decks.map((d) => d['id'] as String).toList());
+  }
+
   Future<void> _loadCategories() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
+    if (mounted) setState(() => _isLoading = true);
 
     try {
       final categories = await _categoryRepository.getAllCategories();
-      
+      final savedOrder = await _loadOrder();
+
+      var decks = <Map<String, dynamic>>[
+        {'name': 'All Categories', 'icon': Icons.category, 'id': 'all_categories', 'isCustom': false},
+        ...categories.map((category) => {
+          ...category,
+          'isCustom': category.containsKey('isCustom') ? category['isCustom'] : false,
+        }),
+      ];
+
+      if (savedOrder.isNotEmpty) {
+        final orderMap = <String, int>{for (var i = 0; i < savedOrder.length; i++) savedOrder[i]: i};
+        decks.sort((a, b) {
+          final aIdx = orderMap[a['id'] as String] ?? savedOrder.length;
+          final bIdx = orderMap[b['id'] as String] ?? savedOrder.length;
+          return aIdx.compareTo(bIdx);
+        });
+      }
+
       if (mounted) {
+        _searchController.clear();
         setState(() {
-          _decks = [
-            {'name': 'All Categories', 'icon': Icons.category, 'id': 'all_categories', 'isCustom': false},
-            ...categories.map((category) => {
-              ...category,
-              'isCustom': category.containsKey('isCustom') ? category['isCustom'] : false,
-            }).toList(),
-          ];
+          _decks = decks;
           _isLoading = false;
+          _searchQuery = '';
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _decks = [{'name': 'All Categories', 'icon': Icons.category, 'id': 'all_categories', 'isCustom': false}]; // Fallback
-        });
-      }
+      if (mounted) setState(() {
+        _isLoading = false;
+        _decks = [{'name': 'All Categories', 'icon': Icons.category, 'id': 'all_categories', 'isCustom': false}];
+      });
     }
+  }
+
+  void _exitEditMode() {
+    setState(() => _editMode = false);
+    _saveOrder();
+  }
+
+  void _onItemDrop(int fromIndex, int toIndex) {
+    setState(() {
+      final item = _decks.removeAt(fromIndex);
+      _decks.insert(toIndex, item);
+    });
+    _saveOrder();
+  }
+
+  void _showDeleteDialog(BuildContext context, Map<String, dynamic> deck) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Category'),
+        content: Text('Remove "${deck['name']}" from your device?\n\nIt can be re-downloaded from the deck store.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final deleted = await _categoryRepository.deleteLocalOnly(deck['id'] as String);
+              if (deleted && mounted) {
+                _exitEditMode();
+                _loadCategories();
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNormalGrid() {
+    final decks = _filteredDecks;
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 1.5,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: decks.length,
+      itemBuilder: (context, index) {
+        final deck = decks[index];
+        return SimpleDeckCard(
+          name: deck['name'],
+          icon: deck['icon'],
+          usedWords: widget.usedWords,
+          isCustomDeck: deck['isCustom'] ?? false,
+          onLongPress: () => setState(() => _editMode = true),
+        );
+      },
+    );
+  }
+
+  Widget _buildEditModeGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 48) / 2;
+        final itemHeight = itemWidth / 1.5;
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: List.generate(_decks.length, (index) {
+              final deck = _decks[index];
+              final isDeletable = deck['id'] != 'all_categories';
+
+              return SizedBox(
+                width: itemWidth,
+                height: itemHeight,
+                child: DragTarget<int>(
+                  onWillAccept: (data) => data != null && data != index,
+                  onAccept: (fromIndex) => _onItemDrop(fromIndex, index),
+                  builder: (ctx, candidateData, _) {
+                    final isHovered = candidateData.isNotEmpty;
+                    return LongPressDraggable<int>(
+                      data: index,
+                      feedback: Material(
+                        borderRadius: BorderRadius.circular(12),
+                        elevation: 8,
+                        child: SizedBox(
+                          width: itemWidth,
+                          height: itemHeight,
+                          child: SimpleDeckCard(
+                            name: deck['name'],
+                            icon: deck['icon'],
+                            usedWords: widget.usedWords,
+                            isCustomDeck: deck['isCustom'] ?? false,
+                          ),
+                        ),
+                      ),
+                      childWhenDragging: SizedBox(
+                        width: itemWidth,
+                        height: itemHeight,
+                        child: Opacity(
+                          opacity: 0.3,
+                          child: SimpleDeckCard(
+                            name: deck['name'],
+                            icon: deck['icon'],
+                            usedWords: widget.usedWords,
+                            isCustomDeck: deck['isCustom'] ?? false,
+                          ),
+                        ),
+                      ),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: isHovered
+                              ? Border.all(color: Colors.blue.shade400, width: 2)
+                              : null,
+                        ),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            SimpleDeckCard(
+                              name: deck['name'],
+                              icon: deck['icon'],
+                              usedWords: widget.usedWords,
+                              isCustomDeck: deck['isCustom'] ?? false,
+                            ),
+                            if (isDeletable)
+                              Positioned(
+                                top: -6,
+                                right: -6,
+                                child: GestureDetector(
+                                  onTap: () => _showDeleteDialog(context, deck),
+                                  child: Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            }),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -309,6 +512,17 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         centerTitle: true,
+        actions: _editMode
+            ? [
+                TextButton(
+                  onPressed: _exitEditMode,
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ]
+            : null,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -319,28 +533,61 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         child: _isLoading
-            ? Center(child: CircularProgressIndicator())
-            : RefreshIndicator(
-                onRefresh: _loadCategories,
-                child: GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 1.5,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
+            ? const Center(child: CircularProgressIndicator())
+            : _editMode
+                ? _buildEditModeGrid()
+                : Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search decks...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white.withOpacity(0.9),
+                          ),
+                          onChanged: (value) => setState(() {
+                            _searchQuery = value;
+                            if (value.isNotEmpty) _editMode = false;
+                          }),
+                        ),
+                      ),
+                      Expanded(
+                        child: (_searchQuery.isNotEmpty && _filteredDecks.length == 1)
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No decks match your search',
+                                      style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadCategories,
+                                child: _buildNormalGrid(),
+                              ),
+                      ),
+                    ],
                   ),
-                  itemCount: _decks.length,
-                  itemBuilder: (context, index) {
-                    return SimpleDeckCard(
-                      name: _decks[index]['name'],
-                      icon: _decks[index]['icon'],
-                      usedWords: widget.usedWords,
-                      isCustomDeck: _decks[index]['isCustom'] ?? false,
-                    );
-                  },
-                ),
-              ),
       ),
     );
   }
@@ -351,6 +598,7 @@ class SimpleDeckCard extends StatelessWidget {
   final IconData icon;
   final List<String> usedWords;
   final bool isCustomDeck;
+  final VoidCallback? onLongPress;
 
   const SimpleDeckCard({
     Key? key,
@@ -358,6 +606,7 @@ class SimpleDeckCard extends StatelessWidget {
     required this.icon,
     required this.usedWords,
     this.isCustomDeck = false,
+    this.onLongPress,
   }) : super(key: key);
 
   @override
@@ -381,6 +630,7 @@ class SimpleDeckCard extends StatelessWidget {
             ),
           );
         },
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(8.0),
           child: Column(

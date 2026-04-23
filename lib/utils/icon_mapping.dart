@@ -59,12 +59,16 @@ class IconMapping {
     'Horror': FontAwesomeIcons.ghost,
   };
 
-  // Convert a display name to a storage key
+  // Pre-computed reverse lookup: storage key -> icon (e.g. "tv_shows" -> Icons.tv)
+  static final Map<String, IconData> _keyCache = {
+    for (final entry in availableIcons.entries)
+      entry.key.toLowerCase().replaceAll(' ', '_'): entry.value,
+  };
+
   static String displayNameToKey(String displayName) {
     return displayName.toLowerCase().replaceAll(' ', '_');
   }
 
-  // Convert a storage key to a display name
   static String keyToDisplayName(String key) {
     return key
         .split('_')
@@ -72,33 +76,20 @@ class IconMapping {
         .join(' ');
   }
 
-  // Get icon from a storage key
   static IconData getIconFromKey(String key) {
-    // Try to convert the key to a display name first
-    String displayName = keyToDisplayName(key);
-    
-    // Check for exact match by display name
-    if (availableIcons.containsKey(displayName)) {
-      return availableIcons[displayName]!;
-    }
-    
-    // Check for exact match of the key itself (case-insensitive)
-    for (var entry in availableIcons.entries) {
-      String entryKey = displayNameToKey(entry.key);
-      if (entryKey == key.toLowerCase()) {
+    final normalized = key.toLowerCase().replaceAll(' ', '_');
+
+    final cached = _keyCache[normalized];
+    if (cached != null) return cached;
+
+    // Partial match fallback for non-standard keys
+    for (final entry in availableIcons.entries) {
+      final entryKey = entry.key.toLowerCase();
+      if (entryKey.contains(normalized) || normalized.contains(entryKey)) {
         return entry.value;
       }
     }
-    
-    // Check for partial matches (case-insensitive)
-    for (var entry in availableIcons.entries) {
-      if (entry.key.toLowerCase().contains(key.toLowerCase()) ||
-          key.toLowerCase().contains(entry.key.toLowerCase())) {
-        return entry.value;
-      }
-    }
-    
-    // Default to category icon if no match
+
     return Icons.category;
   }
   

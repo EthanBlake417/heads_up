@@ -150,38 +150,18 @@ class DatabaseHelper {
   }
 
   Future<List<String>> getWordStringsByCategory(String categoryName) async {
-  final category = await getCategoryByName(categoryName);
-  if (category == null) {
-    return [];
-  }
-  
-  final db = await database;
-  
-  try {
+    final category = await getCategoryByName(categoryName);
+    if (category == null) return [];
+
+    final db = await database;
     final List<Map<String, dynamic>> maps = await db.query(
       'words',
       columns: ['word'],
       where: 'categoryId = ?',
       whereArgs: [category.id],
     );
-    
-    
     return List.generate(maps.length, (i) => maps[i]['word'] as String);
-  } catch (e) {
-    
-    // Try a raw query as fallback
-    try {
-      final result = await db.rawQuery(
-        'SELECT word FROM words WHERE categoryId = ?',
-        [category.id]
-      );
-      
-      return result.map((row) => row['word'] as String).toList();
-    } catch (e) {
-      return [];
-    }
   }
-}
 
   Future<List<String>> getAllWords() async {
     final db = await database;
@@ -200,21 +180,9 @@ class DatabaseHelper {
     await db.delete('categories');
   }
 
-Future<int> deleteCategory(String categoryId) async {
-  final db = await database;
-  
-  // First delete all words for this category (due to foreign key constraint)
-  await db.delete(
-    'words',
-    where: 'categoryId = ?',
-    whereArgs: [categoryId],
-  );
-  
-  // Then delete the category
-  return await db.delete(
-    'categories',
-    where: 'id = ?',
-    whereArgs: [categoryId],
-  );
-}
+  Future<int> deleteCategory(String categoryId) async {
+    final db = await database;
+    await db.delete('words', where: 'categoryId = ?', whereArgs: [categoryId]);
+    return db.delete('categories', where: 'id = ?', whereArgs: [categoryId]);
+  }
 }

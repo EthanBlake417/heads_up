@@ -168,19 +168,10 @@ class CategoryRepository {
       }
 
       final category = await _databaseHelper.getCategoryByName(categoryName);
+      if (category == null) return [];
 
-      if (category == null) {
-        return [];
-      }
-
-      final wordsByName = await _databaseHelper.getWordStringsByCategory(categoryName);
-
-      if (wordsByName.isNotEmpty) {
-        return wordsByName;
-      }
-
-      final wordsById = await _databaseHelper.getWordsByCategory(category.id);
-      return wordsById.map((word) => word.word).toList();
+      final words = await _databaseHelper.getWordsByCategory(category.id);
+      return words.map((w) => w.word).toList();
     } catch (e) {
       debugPrint('CategoryRepository.getWordsForCategory error: $e');
       return [];
@@ -277,17 +268,13 @@ class CategoryRepository {
 
   Future<List<Map<String, dynamic>>> getAllCategoriesWithWords() async {
     final categories = await _databaseHelper.getCategories();
-    final List<Map<String, dynamic>> result = [];
-
-    for (final category in categories) {
-      final words = await _databaseHelper.getWordsByCategory(category.id);
-      result.add({
-        'category': category.toMap(),
-        'words': words.map((w) => w.toMap()).toList(),
-      });
-    }
-
-    return result;
+    final wordLists = await Future.wait(
+      categories.map((c) => _databaseHelper.getWordsByCategory(c.id)),
+    );
+    return List.generate(categories.length, (i) => {
+      'category': categories[i].toMap(),
+      'words': wordLists[i].map((w) => w.toMap()).toList(),
+    });
   }
 
   Future<void> restoreFromBackup(List<dynamic> backupData) async {

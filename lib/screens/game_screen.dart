@@ -50,8 +50,8 @@ class _GameScreenState extends State<GameScreen> {
   
   DateTime? _lastWordChangeTime;
 
-  List<String> correctWords = [];
-  List<String> passedWords = [];
+  final Set<String> correctWords = {};
+  final Set<String> passedWords = {};
 
   double _dragStartX = 0.0;
 
@@ -99,7 +99,8 @@ class _GameScreenState extends State<GameScreen> {
       
       if (mounted) {
         // Filter out words that have already been used
-        final filteredWords = wordsList.where((word) => !widget.usedWords.contains(word)).toList();
+        final usedWordsSet = widget.usedWords.toSet();
+        final filteredWords = wordsList.where((word) => !usedWordsSet.contains(word)).toList();
         
         setState(() {
           words = filteredWords;
@@ -370,8 +371,8 @@ class _GameScreenState extends State<GameScreen> {
           builder: (context) => ResultsScreen(
             score: score,
             deckName: widget.deckName,
-            correctWords: correctWords,
-            passedWords: passedWords,
+            correctWords: correctWords.toList(),
+            passedWords: passedWords.toList(),
             usedWords: widget.usedWords,
           ),
         ),

@@ -208,11 +208,6 @@ class _MainTabScreenState extends State<MainTabScreen> {
           setState(() {
             _currentIndex = actualIndex;
           });
-          
-          // Refresh home page when switching to it
-          if (actualIndex == 0) {
-            _refreshHomeTab();
-          }
         },
         items: navItems,
         selectedItemColor: Colors.blue.shade700,

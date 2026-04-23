@@ -73,13 +73,31 @@ class MainTabScreen extends StatefulWidget {
 class _MainTabScreenState extends State<MainTabScreen> {
   int _currentIndex = 0;
   int _homeRefreshCount = 0;
+  int _storeRefreshCount = 0;
   bool _isAdminMode = false;
+  bool _showSearchBars = true;
   final AdminModeManager _adminManager = AdminModeManager();
-  
+
   @override
   void initState() {
     super.initState();
     _checkAdminMode();
+    _loadSearchBarSetting();
+  }
+
+  Future<void> _loadSearchBarSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _showSearchBars = prefs.getBool('showSearchBars') ?? true;
+      });
+    }
+  }
+
+  void _onSearchBarSettingChanged(bool value) {
+    setState(() {
+      _showSearchBars = value;
+    });
   }
   
   Future<void> _checkAdminMode() async {
@@ -104,6 +122,12 @@ class _MainTabScreenState extends State<MainTabScreen> {
   void _refreshHomeTab() {
     setState(() {
       _homeRefreshCount++;
+    });
+  }
+
+  void _refreshStoreTab() {
+    setState(() {
+      _storeRefreshCount++;
     });
   }
   
@@ -151,23 +175,29 @@ class _MainTabScreenState extends State<MainTabScreen> {
             title: 'Guess It',
             usedWords: widget.usedWords,
             resetUsedWords: widget.resetUsedWords,
+            refreshStoreTab: _refreshStoreTab,
+            showSearchBar: _showSearchBars,
           ),
           // Deck Management Screen (only accessible in admin mode)
           DeckManagementScreen(
             navigateToTab: _navigateToTab,
             refreshHomeTab: _refreshHomeTab,
+            showSearchBar: _showSearchBars,
           ),
           // AI Deck Generator (hidden from bottom tabs)
           AIDeckGenerator(),
           // Online Decks Screen with refresh callback
           OnlineDecksScreen(
+            key: ValueKey(_storeRefreshCount),
             refreshHomeTab: _refreshHomeTab,
+            showSearchBar: _showSearchBars,
           ),
           // Settings page
           SettingsScreen(
-            usedWords: widget.usedWords, 
+            usedWords: widget.usedWords,
             resetUsedWords: widget.resetUsedWords,
             onAdminModeChanged: _onAdminModeChanged,
+            onSearchBarSettingChanged: _onSearchBarSettingChanged,
           ),
         ],
       ),
@@ -246,12 +276,16 @@ class HomePage extends StatefulWidget {
   final String title;
   final List<String> usedWords;
   final VoidCallback resetUsedWords;
+  final VoidCallback? refreshStoreTab;
+  final bool showSearchBar;
 
   const HomePage({
-    Key? key, 
-    required this.title, 
-    required this.usedWords, 
-    required this.resetUsedWords
+    Key? key,
+    required this.title,
+    required this.usedWords,
+    required this.resetUsedWords,
+    this.refreshStoreTab,
+    this.showSearchBar = true,
   }) : super(key: key);
 
   @override
@@ -262,7 +296,7 @@ class _HomePageState extends State<HomePage> {
   final CategoryRepository _categoryRepository = CategoryRepository();
   List<Map<String, dynamic>> _decks = [];
   bool _isLoading = true;
-  bool _editMode = false;
+  bool _isDragging = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
@@ -339,11 +373,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _exitEditMode() {
-    setState(() => _editMode = false);
-    _saveOrder();
-  }
-
   void _onItemDrop(int fromIndex, int toIndex) {
     setState(() {
       final item = _decks.removeAt(fromIndex);
@@ -368,7 +397,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.pop(ctx);
               final deleted = await _categoryRepository.deleteLocalOnly(deck['id'] as String);
               if (deleted && mounted) {
-                _exitEditMode();
+                widget.refreshStoreTab?.call();
                 _loadCategories();
               }
             },
@@ -380,127 +409,162 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildNormalGrid() {
-    final decks = _filteredDecks;
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        childAspectRatio: 1.5,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: decks.length,
-      itemBuilder: (context, index) {
-        final deck = decks[index];
-        return SimpleDeckCard(
-          name: deck['name'],
-          icon: deck['icon'],
-          usedWords: widget.usedWords,
-          isCustomDeck: deck['isCustom'] ?? false,
-          onLongPress: () => setState(() => _editMode = true),
-        );
-      },
-    );
-  }
+  Widget _buildGrid() {
+    // When searching, show a plain non-draggable grid of filtered results
+    if (_searchQuery.isNotEmpty) {
+      final decks = _filteredDecks;
+      return GridView.builder(
+        padding: const EdgeInsets.all(16),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 1.5,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+        ),
+        itemCount: decks.length,
+        itemBuilder: (context, index) {
+          final deck = decks[index];
+          return SimpleDeckCard(
+            name: deck['name'],
+            icon: deck['icon'],
+            usedWords: widget.usedWords,
+            isCustomDeck: deck['isCustom'] ?? false,
+          );
+        },
+      );
+    }
 
-  Widget _buildEditModeGrid() {
+    // Normal view: draggable Wrap using full _decks list
     return LayoutBuilder(
       builder: (context, constraints) {
         final itemWidth = (constraints.maxWidth - 48) / 2;
         final itemHeight = itemWidth / 1.5;
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: List.generate(_decks.length, (index) {
-              final deck = _decks[index];
-              final isDeletable = deck['id'] != 'all_categories';
-
-              return SizedBox(
-                width: itemWidth,
-                height: itemHeight,
-                child: DragTarget<int>(
-                  onWillAccept: (data) => data != null && data != index,
-                  onAccept: (fromIndex) => _onItemDrop(fromIndex, index),
-                  builder: (ctx, candidateData, _) {
-                    final isHovered = candidateData.isNotEmpty;
-                    return LongPressDraggable<int>(
-                      data: index,
-                      feedback: Material(
-                        borderRadius: BorderRadius.circular(12),
-                        elevation: 8,
-                        child: SizedBox(
-                          width: itemWidth,
-                          height: itemHeight,
-                          child: SimpleDeckCard(
-                            name: deck['name'],
-                            icon: deck['icon'],
-                            usedWords: widget.usedWords,
-                            isCustomDeck: deck['isCustom'] ?? false,
-                          ),
-                        ),
-                      ),
-                      childWhenDragging: SizedBox(
-                        width: itemWidth,
-                        height: itemHeight,
-                        child: Opacity(
-                          opacity: 0.3,
-                          child: SimpleDeckCard(
-                            name: deck['name'],
-                            icon: deck['icon'],
-                            usedWords: widget.usedWords,
-                            isCustomDeck: deck['isCustom'] ?? false,
-                          ),
-                        ),
-                      ),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: isHovered
-                              ? Border.all(color: Colors.blue.shade400, width: 2)
-                              : null,
-                        ),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            SimpleDeckCard(
+        return RefreshIndicator(
+          onRefresh: _loadCategories,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: List.generate(_decks.length, (index) {
+                final deck = _decks[index];
+                return SizedBox(
+                  width: itemWidth,
+                  height: itemHeight,
+                  child: DragTarget<int>(
+                    onWillAccept: (data) => data != null && data != index,
+                    onAccept: (fromIndex) => _onItemDrop(fromIndex, index),
+                    builder: (ctx, candidateData, _) {
+                      final isHovered = candidateData.isNotEmpty;
+                      return LongPressDraggable<int>(
+                        data: index,
+                        onDragStarted: () => setState(() => _isDragging = true),
+                        onDragEnd: (_) => setState(() => _isDragging = false),
+                        feedback: Material(
+                          borderRadius: BorderRadius.circular(12),
+                          elevation: 8,
+                          child: SizedBox(
+                            width: itemWidth,
+                            height: itemHeight,
+                            child: SimpleDeckCard(
                               name: deck['name'],
                               icon: deck['icon'],
                               usedWords: widget.usedWords,
                               isCustomDeck: deck['isCustom'] ?? false,
                             ),
-                            if (isDeletable)
-                              Positioned(
-                                top: -6,
-                                right: -6,
-                                child: GestureDetector(
-                                  onTap: () => _showDeleteDialog(context, deck),
-                                  child: Container(
-                                    width: 24,
-                                    height: 24,
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(Icons.close, color: Colors.white, size: 16),
-                                  ),
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            }),
+                        childWhenDragging: SizedBox(
+                          width: itemWidth,
+                          height: itemHeight,
+                          child: Opacity(
+                            opacity: 0.3,
+                            child: SimpleDeckCard(
+                              name: deck['name'],
+                              icon: deck['icon'],
+                              usedWords: widget.usedWords,
+                              isCustomDeck: deck['isCustom'] ?? false,
+                            ),
+                          ),
+                        ),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: isHovered
+                                ? Border.all(color: Colors.blue.shade400, width: 2)
+                                : null,
+                          ),
+                          child: SimpleDeckCard(
+                            name: deck['name'],
+                            icon: deck['icon'],
+                            usedWords: widget.usedWords,
+                            isCustomDeck: deck['isCustom'] ?? false,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }),
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTrashZone(BuildContext context) {
+    return ClipRect(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        height: _isDragging ? 96 : 0,
+        child: DragTarget<int>(
+          onWillAccept: (index) => index != null && _decks[index]['id'] != 'all_categories',
+          onAccept: (index) => _showDeleteDialog(context, _decks[index]),
+          builder: (ctx, candidateData, _) {
+            final isHovered = candidateData.isNotEmpty;
+            return Container(
+              height: 80,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              decoration: BoxDecoration(
+                color: isHovered
+                    ? Colors.red.shade100.withOpacity(0.9)
+                    : Colors.white.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isHovered ? Colors.red.shade400 : Colors.white.withOpacity(0.6),
+                  width: 2,
+                ),
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isHovered ? Icons.delete : Icons.delete_outline,
+                      color: isHovered ? Colors.red.shade700 : Colors.white.withOpacity(0.85),
+                      size: 28,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Drop here to remove',
+                      style: TextStyle(
+                        color: isHovered ? Colors.red.shade700 : Colors.white.withOpacity(0.85),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -512,17 +576,6 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         centerTitle: true,
-        actions: _editMode
-            ? [
-                TextButton(
-                  onPressed: _exitEditMode,
-                  child: const Text(
-                    'Done',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ]
-            : null,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -534,60 +587,54 @@ class _HomePageState extends State<HomePage> {
         ),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _editMode
-                ? _buildEditModeGrid()
-                : Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: InputDecoration(
-                            hintText: 'Search decks...',
-                            prefixIcon: const Icon(Icons.search),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      _searchController.clear();
-                                      setState(() => _searchQuery = '');
-                                    },
-                                  )
-                                : null,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(0.9),
+            : Column(
+                children: [
+                  if (widget.showSearchBar)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search decks...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          onChanged: (value) => setState(() {
-                            _searchQuery = value;
-                            if (value.isNotEmpty) _editMode = false;
-                          }),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.9),
                         ),
+                        onChanged: (value) => setState(() => _searchQuery = value),
                       ),
-                      Expanded(
-                        child: (_searchQuery.isNotEmpty && _filteredDecks.length == 1)
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No decks match your search',
-                                      style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-                                    ),
-                                  ],
+                    ),
+                  Expanded(
+                    child: (_searchQuery.isNotEmpty && _filteredDecks.length == 1)
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.search_off, size: 64, color: Colors.grey.shade400),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No decks match your search',
+                                  style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                                 ),
-                              )
-                            : RefreshIndicator(
-                                onRefresh: _loadCategories,
-                                child: _buildNormalGrid(),
-                              ),
-                      ),
-                    ],
+                              ],
+                            ),
+                          )
+                        : _buildGrid(),
                   ),
+                  _buildTrashZone(context),
+                ],
+              ),
       ),
     );
   }

@@ -7,11 +7,13 @@ import 'package:guess_it/utils/icon_mapping.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class OnlineDecksScreen extends StatefulWidget {
-  final VoidCallback refreshHomeTab; // Added callback to refresh home tab
+  final VoidCallback refreshHomeTab;
+  final bool showSearchBar;
 
   const OnlineDecksScreen({
-    Key? key, 
+    Key? key,
     required this.refreshHomeTab,
+    this.showSearchBar = true,
   }) : super(key: key);
 
   @override
@@ -293,6 +295,7 @@ class _OnlineDecksScreenState extends State<OnlineDecksScreen> {
                   )
                 : Column(
                     children: [
+                      if (widget.showSearchBar)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                         child: TextField(

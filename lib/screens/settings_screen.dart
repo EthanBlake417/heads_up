@@ -9,12 +9,14 @@ class SettingsScreen extends StatefulWidget {
   final List<String> usedWords;
   final VoidCallback resetUsedWords;
   final VoidCallback onAdminModeChanged;
+  final ValueChanged<bool> onSearchBarSettingChanged;
 
   const SettingsScreen({
-    Key? key, 
-    required this.usedWords, 
+    Key? key,
+    required this.usedWords,
     required this.resetUsedWords,
     required this.onAdminModeChanged,
+    required this.onSearchBarSettingChanged,
   }) : super(key: key);
 
   @override
@@ -25,6 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundEnabled = true;
   int _gameDuration = 60;
   bool _removeWordsEnabled = false;
+  bool _showSearchBars = true;
   bool _isAdminMode = false;
   final CategoryRepository _categoryRepository = CategoryRepository();
   final AdminModeManager _adminManager = AdminModeManager();
@@ -45,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _soundEnabled = prefs.getBool('soundEnabled') ?? true;
         _gameDuration = prefs.getInt('gameDuration') ?? 60;
         _removeWordsEnabled = prefs.getBool('removeWordsEnabled') ?? false;
+        _showSearchBars = prefs.getBool('showSearchBars') ?? true;
       });
     } catch (e) {
       debugPrint('SettingsScreen._loadSettings error: $e');
@@ -69,6 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await prefs.setBool('soundEnabled', _soundEnabled);
       await prefs.setInt('gameDuration', _gameDuration);
       await prefs.setBool('removeWordsEnabled', _removeWordsEnabled);
+      await prefs.setBool('showSearchBars', _showSearchBars);
     } catch (e) {
       debugPrint('SettingsScreen._saveSettings error: $e');
       if (!mounted) return;
@@ -198,6 +203,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _soundEnabled = value;
                         _saveSettings();
                       });
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text('Search Bars'),
+                    subtitle: const Text('Show search bars in deck lists'),
+                    value: _showSearchBars,
+                    onChanged: (bool value) {
+                      setState(() {
+                        _showSearchBars = value;
+                        _saveSettings();
+                      });
+                      widget.onSearchBarSettingChanged(value);
                     },
                   ),
                   ListTile(

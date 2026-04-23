@@ -8,12 +8,14 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class DeckManagementScreen extends StatefulWidget {
   final Function(int) navigateToTab;
-  final Function refreshHomeTab; // Added callback to refresh home tab
-  
+  final Function refreshHomeTab;
+  final bool showSearchBar;
+
   const DeckManagementScreen({
-    Key? key, 
+    Key? key,
     required this.navigateToTab,
     required this.refreshHomeTab,
+    this.showSearchBar = true,
   }) : super(key: key);
 
   @override
@@ -260,6 +262,7 @@ class _DeckManagementScreenState extends State<DeckManagementScreen> {
                           },
                         ),
                       ),
+                      if (widget.showSearchBar)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                         child: TextField(
